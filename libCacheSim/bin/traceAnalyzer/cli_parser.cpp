@@ -15,8 +15,7 @@ extern "C" {
 #endif
 
 const char *argp_program_version = "traceAnalyzer 0.0.1";
-const char *argp_program_bug_address =
-    "https://groups.google.com/g/libcachesim/";
+const char *argp_program_bug_address = "https://groups.google.com/g/libcachesim/";
 
 enum argp_option_short {
   OPTION_TRACE_TYPE_PARAMS = 't',
@@ -60,24 +59,18 @@ enum argp_option_short {
 */
 static struct argp_option options[] = {
     {NULL, 0, NULL, 0, "trace reader related parameters:", 0},
-    {"trace-type-params", OPTION_TRACE_TYPE_PARAMS,
-     "time-col=1,obj-id-col=2,obj-size-col=3,delimiter=,", 0,
+    {"trace-type-params", OPTION_TRACE_TYPE_PARAMS, "time-col=1,obj-id-col=2,obj-size-col=3,delimiter=,", 0,
      "Parameters used for csv trace", 1},
-    {"num-req", OPTION_NUM_REQ, "-1", 0,
-     "Num of requests to process, default -1 means all requests in the trace",
-     1},
+    {"num-req", OPTION_NUM_REQ, "-1", 0, "Num of requests to process, default -1 means all requests in the trace", 1},
 
     {NULL, 0, NULL, 0, "trace analyzer task options:", 0},
-    {"common", OPTION_ENABLE_COMMON, NULL, OPTION_ARG_OPTIONAL,
-     "enable common analysis", 2},
-    {"all", OPTION_ENABLE_ALL, NULL, OPTION_ARG_OPTIONAL,
-     "enable all the analysis", 2},
+    {"common", OPTION_ENABLE_COMMON, NULL, OPTION_ARG_OPTIONAL, "enable common analysis", 2},
+    {"all", OPTION_ENABLE_ALL, NULL, OPTION_ARG_OPTIONAL, "enable all the analysis", 2},
     {"popularity", OPTION_ENABLE_POPULARITY, NULL, OPTION_ARG_OPTIONAL,
      "enable popularity analysis, output freq:cnt in dataname.popularity file, "
      "and prints the skewness to stdout and stat file",
      3},
-    {"popularityDacay", OPTION_ENABLE_POPULARITY_DECAY, NULL,
-     OPTION_ARG_OPTIONAL,
+    {"popularityDacay", OPTION_ENABLE_POPULARITY_DECAY, NULL, OPTION_ARG_OPTIONAL,
      "enable popularity decay analysis, this calculates popularity fade as a "
      "heatmap. It is an expensive analysis, enable only when needed.",
      3},
@@ -100,37 +93,38 @@ static struct argp_option options[] = {
      "ttl analysis, output a ttl distribution in dataname.ttl file", 2},
 
     {NULL, 0, NULL, 0, "trace analyzer related parameters:", 4},
-    {"time-window", OPTION_TIME_WINDOW, "300", 0,
-     "time window used in per-interval analysis", 4},
+    {"time-window", OPTION_TIME_WINDOW, "300", 0, "time window used in per-interval analysis", 4},
     {"warmup-sec", OPTION_WARMUP_SEC, "86400", 0, "warm up before analysis", 4},
-    {"access-pattern-sample-ratio", OPTION_ACCESS_PATTERN_SAMPLE_RATIO, "0.01",
-     0, "the sampling ratio in access pattern analysis", 4},
-    {"track-n-hit", OPTION_TRACK_N_HIT, "8", 0,
-     "track one-hit-wonder, two-hit-wonder, etc.", 4},
-    {"track-n-popular", OPTION_TRACK_N_POPULAR, "8", 0,
-     "track how many requests the n most popular objects get", 4},
+    {"access-pattern-sample-ratio", OPTION_ACCESS_PATTERN_SAMPLE_RATIO, "0.01", 0,
+     "the sampling ratio in access pattern analysis", 4},
+    {"track-n-hit", OPTION_TRACK_N_HIT, "8", 0, "track one-hit-wonder, two-hit-wonder, etc.", 4},
+    {"track-n-popular", OPTION_TRACK_N_POPULAR, "8", 0, "track how many requests the n most popular objects get", 4},
 
     {NULL, 0, NULL, 0, "common parameters:", 0},
 
     {"output", OPTION_OUTPUT_PATH, "", OPTION_ARG_OPTIONAL, "Output path", 8},
-    {"verbose", OPTION_VERBOSE, NULL, OPTION_ARG_OPTIONAL,
-     "Produce verbose output", 8},
-    {0}};
+    {"verbose", OPTION_VERBOSE, NULL, OPTION_ARG_OPTIONAL, "Produce verbose output", 8},
+    {0}
+
+};
 
 /*
    PARSER. Field 2 in ARGP.
    Order of parameters: KEY, ARG, STATE.
 */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
-  struct arguments *arguments =
-      reinterpret_cast<struct arguments *>(state->input);
+  struct arguments *arguments = reinterpret_cast<struct arguments *>(state->input);
 
   switch (key) {
     case OPTION_TRACE_TYPE_PARAMS:
+      printf("trace type params: %s\n", arg);
       arguments->trace_type_params = arg;
       break;
     case OPTION_OUTPUT_PATH:
+      printf("before output path: %s\n", arg);
       strncpy(arguments->ofilepath, arg, OFILEPATH_LEN);
+      // output
+      printf("after output path: %s\n", arg);
       break;
     case OPTION_NUM_REQ:
       arguments->n_req = atoll(arg);
@@ -144,8 +138,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPTION_ACCESS_PATTERN_SAMPLE_RATIO:
       arguments->analysis_param.access_pattern_sample_ratio = atof(arg);
       arguments->analysis_param.access_pattern_sample_ratio_inv =
-          (int)(1.0 / arguments->analysis_param.access_pattern_sample_ratio) +
-          1;
+          (int)(1.0 / arguments->analysis_param.access_pattern_sample_ratio) + 1;
       break;
     case OPTION_TRACK_N_HIT:
       arguments->analysis_param.track_n_hit = atoi(arg);
@@ -258,20 +251,19 @@ void parse_cmd(int argc, char *argv[], struct arguments *args) {
   init_arg(args);
 
   static struct argp argp = {options, parse_opt, args_doc, doc};
+  printf("PARSE CMD\n");
 
   argp_parse(&argp, argc, argv, 0, 0, args);
+  printf("OUT ARGPPARSE\n");
 
   args->trace_path = args->args[0];
   const char *trace_type_str = args->args[1];
-
   if (args->ofilepath[0] == '\0') {
     char *trace_filename = rindex(args->trace_path, '/');
-    snprintf(args->ofilepath, OFILEPATH_LEN, "%s",
-             trace_filename == NULL ? args->trace_path : trace_filename + 1);
+    snprintf(args->ofilepath, OFILEPATH_LEN, "%s", trace_filename == NULL ? args->trace_path : trace_filename + 1);
   }
 
-  args->reader = create_reader(trace_type_str, args->trace_path,
-                               args->trace_type_params, args->n_req, false, 1);
+  args->reader = create_reader(trace_type_str, args->trace_path, args->trace_type_params, args->n_req, false, 1);
 }
 
 void free_arg(struct arguments *args) { close_reader(args->reader); }

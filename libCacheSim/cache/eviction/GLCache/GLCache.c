@@ -29,8 +29,7 @@ FILE *ofile_cmp_y = NULL;
 
 static void GLCache_free(cache_t *cache);
 static bool GLCache_get(cache_t *cache, const request_t *req);
-static cache_obj_t *GLCache_find(cache_t *cache, const request_t *req,
-                                 const bool update_cache);
+static cache_obj_t *GLCache_find(cache_t *cache, const request_t *req, const bool update_cache);
 static cache_obj_t *GLCache_insert(cache_t *cache, const request_t *req);
 static cache_obj_t *GLCache_to_evict(cache_t *cache, const request_t *req);
 static void GLCache_evict(cache_t *cache, const request_t *req);
@@ -56,8 +55,7 @@ const char *GLCache_default_params(void) {
          "retrain-intvl=86400";
 }
 
-static void GLCache_parse_init_params(const char *cache_specific_params,
-                                      GLCache_params_t *params) {
+static void GLCache_parse_init_params(const char *cache_specific_params, GLCache_params_t *params) {
   char *params_str = strdup(cache_specific_params);
 
   while (params_str != NULL && params_str[0] != '\0') {
@@ -101,8 +99,7 @@ static void GLCache_parse_init_params(const char *cache_specific_params,
             value);
         exit(1);
       }
-    } else if (strcasecmp(key, "print") == 0 ||
-               strcasecmp(key, "default") == 0) {
+    } else if (strcasecmp(key, "print") == 0 || strcasecmp(key, "default") == 0) {
       printf("default params: %s\n", GLCache_default_params());
       exit(0);
     } else {
@@ -126,8 +123,8 @@ static void GLCache_parse_init_params(const char *cache_specific_params,
  * @param ccache_params some common cache parameters
  * @param cache_specific_params cache specific parameters, see parse_params
  */
-cache_t *GLCache_init(const common_cache_params_t ccache_params,
-                      const char *cache_specific_params) {
+cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cache_specific_params,
+                      int retrain_interval) {
   cache_t *cache = cache_struct_init("GLCache", ccache_params, cache_specific_params);
 
   if (ccache_params.consider_obj_metadata) {
@@ -146,12 +143,14 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params,
 
   set_default_params(params);
 
-  if (cache_specific_params != NULL)
-    GLCache_parse_init_params(cache_specific_params, params);
+  if (cache_specific_params != NULL) GLCache_parse_init_params(cache_specific_params, params);
 
   check_params(params);
 
   params->n_retain_per_seg = params->segment_size / params->n_merge;
+  params->retrain_intvl = retrain_interval;
+
+  printf("GLCACHE PARAMS INTVL: %d\n", params->retrain_intvl);
 
   switch (params->type) {
     case LOGCACHE_LOG_ORACLE:
@@ -188,14 +187,15 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params,
   cache->to_evict = NULL;
   cache->evict = GLCache_evict;
   cache->remove = GLCache_remove;
+  cache->retrain_interval = params->retrain_intvl;
 
   INFO(
       "%s, %.0lfMB, segment_size %d, training_interval %d, source %d, "
       "rank interval %.2lf, merge consecutive segments %d, "
       "merge %d segments\n",
-      GLCache_type_names[params->type], (double)cache->cache_size / 1048576.0,
-      params->segment_size, params->retrain_intvl, params->train_source_y,
-      params->rank_intvl, params->merge_consecutive_segs, params->n_merge);
+      GLCache_type_names[params->type], (double)cache->cache_size / 1048576.0, params->segment_size,
+      params->retrain_intvl, params->train_source_y, params->rank_intvl, params->merge_consecutive_segs,
+      params->n_merge);
   return cache;
 }
 
@@ -228,25 +228,17 @@ static void GLCache_free(cache_t *cache) {
     }
   }
 
-  my_free(sizeof(double) * params->obj_sel.array_size,
-          params->obj_sel.score_array);
-  my_free(sizeof(dd_pair_t) * params->obj_sel.array_size,
-          params->obj_sel.dd_pair_array);
+  my_free(sizeof(double) * params->obj_sel.array_size, params->obj_sel.score_array);
+  my_free(sizeof(dd_pair_t) * params->obj_sel.array_size, params->obj_sel.dd_pair_array);
   my_free(sizeof(segment_t *) * params->n_merge, params->obj_sel.segs_to_evict);
 
   my_free(sizeof(segment_t *) * params->n_seg, params->seg_sel.ranked_segs);
-  my_free(sizeof(feature_t) * params->learner.train_matrix_n_row,
-          params->learner.train_x);
-  my_free(sizeof(feature_t) * params->learner.train_matrix_n_row,
-          params->learner.train_y);
-  my_free(sizeof(feature_t) * params->learner.train_matrix_n_row,
-          params->learner.train_y_oracle);
-  my_free(sizeof(feature_t) * params->learner.valid_matrix_n_row,
-          params->learner.valid_x);
-  my_free(sizeof(feature_t) * params->learner.valid_matrix_n_row,
-          params->learner.valid_y);
-  my_free(sizeof(pred_t) * params->learner.inf_matrix_n_row,
-          params->learner.inference_x);
+  my_free(sizeof(feature_t) * params->learner.train_matrix_n_row, params->learner.train_x);
+  my_free(sizeof(feature_t) * params->learner.train_matrix_n_row, params->learner.train_y);
+  my_free(sizeof(feature_t) * params->learner.train_matrix_n_row, params->learner.train_y_oracle);
+  my_free(sizeof(feature_t) * params->learner.valid_matrix_n_row, params->learner.valid_x);
+  my_free(sizeof(feature_t) * params->learner.valid_matrix_n_row, params->learner.valid_y);
+  my_free(sizeof(pred_t) * params->learner.inf_matrix_n_row, params->learner.inference_x);
 
   my_free(sizeof(GLCache_params_t), params);
   cache_struct_free(cache);
@@ -276,12 +268,10 @@ static bool GLCache_get(cache_t *cache, const request_t *req) {
 
   bool ret = cache_get_base(cache, req);
 
-  if (params->type == LOGCACHE_LEARNED ||
-      params->type == LOGCACHE_ITEM_ORACLE) {
+  if (params->type == LOGCACHE_LEARNED || params->type == LOGCACHE_ITEM_ORACLE) {
     /* generate training data by taking a snapshot */
     learner_t *l = &params->learner;
-    if (l->last_train_rtime > 0 &&
-        params->curr_rtime - l->last_train_rtime >= params->retrain_intvl + 1) {
+    if (l->last_train_rtime > 0 && params->curr_rtime - l->last_train_rtime >= params->retrain_intvl + 1) {
       train(cache);
       snapshot_segs_to_training_data(cache);
     }
@@ -308,8 +298,7 @@ static bool GLCache_get(cache_t *cache, const request_t *req) {
  *  and if the object is expired, it is removed from the cache
  * @return the object or NULL if not found
  */
-static cache_obj_t *GLCache_find(cache_t *cache, const request_t *req,
-                                 const bool update_cache) {
+static cache_obj_t *GLCache_find(cache_t *cache, const request_t *req, const bool update_cache) {
   GLCache_params_t *params = cache->eviction_params;
 
   cache_obj_t *cache_obj = hashtable_find(cache->hashtable, req);
@@ -396,8 +385,7 @@ static cache_obj_t *GLCache_insert(cache_t *cache, const request_t *req) {
 
     seg = allocate_new_seg(cache, bucket->bucket_id);
     append_seg_to_bucket(params, bucket, seg);
-    VVERBOSE("%lu allocate new seg, %d in use seg\n", cache->n_req,
-             params->n_in_use_segs);
+    VVERBOSE("%lu allocate new seg, %d in use seg\n", cache->n_req, params->n_in_use_segs);
   }
 
   cache_obj_t *cache_obj = &seg->objs[seg->n_obj];
@@ -409,8 +397,7 @@ static cache_obj_t *GLCache_insert(cache_t *cache, const request_t *req) {
   cache->occupied_byte += cache_obj->obj_size + cache->obj_md_size;
   cache->n_obj += 1;
 
-  DEBUG_ASSERT(cache->n_obj > (params->n_in_use_segs - params->n_used_buckets) *
-                                  params->segment_size);
+  DEBUG_ASSERT(cache->n_obj > (params->n_in_use_segs - params->n_used_buckets) * params->segment_size);
   DEBUG_ASSERT(cache->n_obj <= params->n_in_use_segs * params->segment_size);
 
   return cache_obj;
@@ -444,10 +431,8 @@ static void GLCache_evict(cache_t *cache, const request_t *req) {
     static int64_t last_print_time = 0;
     if (params->curr_rtime - last_print_time > 3600 * 6) {
       last_print_time = params->curr_rtime;
-      WARN(
-          "%.2lf hour, cache size %lu MB, %d segs, evicting and cannot merge\n",
-          (double)params->curr_rtime / 3600.0, cache->cache_size / 1024 / 1024,
-          params->n_in_use_segs);
+      WARN("%.2lf hour, cache size %lu MB, %d segs, evicting and cannot merge\n", (double)params->curr_rtime / 3600.0,
+           cache->cache_size / 1024 / 1024, params->n_in_use_segs);
     }
 
     evict_one_seg(cache, params->obj_sel.segs_to_evict[0]);
@@ -455,8 +440,7 @@ static void GLCache_evict(cache_t *cache, const request_t *req) {
   }
 
   for (int i = 0; i < params->n_merge; i++) {
-    params->cache_state.n_evicted_bytes +=
-        params->obj_sel.segs_to_evict[i]->n_byte;
+    params->cache_state.n_evicted_bytes += params->obj_sel.segs_to_evict[i]->n_byte;
   }
   params->n_evictions += 1;
 

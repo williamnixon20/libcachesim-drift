@@ -343,3 +343,41 @@ See [LICENSE](LICENSE) for details.
 * [PyMimircache](https://github.com/1a1a11a/PyMimircache): a python based cache trace analysis platform, now deprecated
 ---
 
+
+
+_____
+## Generate Block Access Plot
+1. Trace analyzer
+`./bin/traceAnalyzer ../data/twitter_cluster52.csv csv --common --trace-type-params="time-col=1, obj-id-col=2, obj-size-col=3, delimiter=,,"`
+`./bin/traceAnalyzer ../data/twitter_cluster52.csv csv --common --trace-type-params="time-col=1, obj-id-col=2, obj-size-col=3, delimiter=,,"`
+
+./bin/traceAnalyzer /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns0.oracleGeneral.zst oracleGeneral --all
+## Access pattern
+2. python3 traceAnalysis/access_pattern.py /home/cc/clio/libCacheSim/_build/io_traces.ns0.oracleGeneral.zst.accessRtime
+3. python3 traceAnalysis/access_pattern.py /home/cc/clio/libCacheSim/_build/io_traces.ns0.oracleGeneral.zst.accessVtime
+# Req Rate
+4. python3 traceAnalysis/req_rate.py /home/cc/clio/libCacheSim/_build/io_traces.ns0.oracleGeneral.zst.reqRate_w300
+# Size
+5. python3 traceAnalysis/size.py /home/cc/clio/libCacheSim/_build/io_traces.ns0.oracleGeneral.zst.size
+# Reuse Distribution
+6. python3 traceAnalysis/reuse.py /home/cc/clio/libCacheSim/_build/io_traces.ns0.oracleGeneral.zst.reuse
+
+Need to be run in this folder
+cc@ray-stor:~/clio/libCacheSim/scripts/traceAnalysis$ ./run.sh /home/cc/clio/libCacheSim/_build/analyzer_result
+
+## Hit rate over time
+1. python3 ../plot_mrc_time.py --tracepath /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns0.oracleGeneral.zst --miss-ratio-type="accu" --verbose 
+2. python3 ../plot_mrc_size.py --tracepath /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns0.oracleGeneral.zst --algos=fifo,lru,lecar,s3fifo --sizes=0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.3,0.4
+
+
+Profiling
+1. Make trace characteristics
+2. Plot trace characteristics
+3. Move the folder
+
+Running simulation
+1. Run mrc_size
+2. Run mrc_time
+
+
+ ./_build/bin/traceAnalyzer /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns0.oracleGeneral.zst oracleGeneral --all

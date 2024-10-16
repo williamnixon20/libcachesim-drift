@@ -176,7 +176,7 @@ def run():
     import glob
 
     cachesim_path = "/proj/redundancy-PG0/jason/libCacheSim/_build/cachesim"
-    algos = "lru,slru,arc,lirs,lhd,tinylfu,s3fifo,sieve"
+    algos = "lru,lfu,slru,arc,lirs,lhd,tinylfu,s3fifo,sieve"
     cache_sizes = "0.01,0.02,0.05,0.075,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.5,0.6,0.7,0.8"
 
     for tracepath in glob.glob("/disk/data/*.zst"):

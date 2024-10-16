@@ -39,6 +39,7 @@ struct arguments {
   char *prefetch_params;
   double sample_ratio;
   int n_thread;
+  int retrain_interval;
   int64_t n_req; /* number of requests to process */
 
   bool verbose;
@@ -57,9 +58,8 @@ void parse_cmd(int argc, char *argv[], struct arguments *args);
 
 void free_arg(struct arguments *args);
 
-void simulate(reader_t *reader, cache_t *cache, int report_interval,
-              int warmup_sec, char *ofilepath, bool ignore_obj_size,
-              bool print_head_req);
+void simulate(reader_t *reader, cache_t *cache, int report_interval, int warmup_sec, char *ofilepath,
+              bool ignore_obj_size, bool print_head_req);
 
 void print_parsed_args(struct arguments *args);
 

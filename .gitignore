@@ -17,3 +17,10 @@ fig/
 sftp-config.json
 # Clangd cache
 *.cache/
+data/
+scripts/result/
+scripts/result_/
+scripts/traceAnalysis/figure_named/
+xgboost/
+zstd-1.5.0/
+LightGBM/

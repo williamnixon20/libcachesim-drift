@@ -36,15 +36,13 @@ typedef struct {
   bool consider_obj_metadata;
 } common_cache_params_t;
 
-typedef cache_t *(*cache_init_func_ptr)(const common_cache_params_t,
-                                        const char *);
+typedef cache_t *(*cache_init_func_ptr)(const common_cache_params_t, const char *);
 
 typedef void (*cache_free_func_ptr)(cache_t *);
 
 typedef bool (*cache_get_func_ptr)(cache_t *, const request_t *);
 
-typedef cache_obj_t *(*cache_find_func_ptr)(cache_t *, const request_t *,
-                                            const bool);
+typedef cache_obj_t *(*cache_find_func_ptr)(cache_t *, const request_t *, const bool);
 
 typedef bool (*cache_can_insert_func_ptr)(cache_t *cache, const request_t *req);
 
@@ -107,6 +105,8 @@ struct cache {
   cache_get_occupied_byte_func_ptr get_occupied_byte;
   cache_get_n_obj_func_ptr get_n_obj;
   cache_print_cache_func_ptr print_cache;
+
+  int retrain_interval;
 
   admissioner_t *admissioner;
 
@@ -176,8 +176,7 @@ static inline common_cache_params_t default_common_cache_params(void) {
  * @param params
  * @return
  */
-cache_t *cache_struct_init(const char *cache_name, common_cache_params_t params,
-                           const void *const init_params);
+cache_t *cache_struct_init(const char *cache_name, common_cache_params_t params, const void *const init_params);
 
 /**
  * free the cache struct, must be called in all cache_free functions
@@ -199,8 +198,7 @@ cache_t *clone_cache(const cache_t *old_cache);
  * @param new_size
  * @return
  */
-cache_t *create_cache_with_new_size(const cache_t *old_cache,
-                                    const uint64_t new_size);
+cache_t *create_cache_with_new_size(const cache_t *old_cache, const uint64_t new_size);
 
 /**
  * a function that finds object from the cache, it is used by
@@ -211,8 +209,7 @@ cache_t *create_cache_with_new_size(const cache_t *old_cache,
  * @param update_cache
  * @return
  */
-cache_obj_t *cache_find_base(cache_t *cache, const request_t *req,
-                             const bool update_cache);
+cache_obj_t *cache_find_base(cache_t *cache, const request_t *req, const bool update_cache);
 
 /**
  * a common cache get function
@@ -250,8 +247,7 @@ cache_obj_t *cache_insert_base(cache_t *cache, const request_t *req);
  * @param cache the cache
  * @param obj the object to be removed
  */
-void cache_remove_obj_base(cache_t *cache, cache_obj_t *obj,
-                           bool remove_from_hashtable);
+void cache_remove_obj_base(cache_t *cache, cache_obj_t *obj, bool remove_from_hashtable);
 
 /**
  * @brief this function is called by all eviction algorithms in the eviction
@@ -261,8 +257,7 @@ void cache_remove_obj_base(cache_t *cache, cache_obj_t *obj,
  * @param cache the cache
  * @param obj the object to be removed
  */
-void cache_evict_base(cache_t *cache, cache_obj_t *obj,
-                      bool remove_from_hashtable);
+void cache_evict_base(cache_t *cache, cache_obj_t *obj, bool remove_from_hashtable);
 
 /**
  * @brief get the number of bytes occupied, this is the default
@@ -271,9 +266,7 @@ void cache_evict_base(cache_t *cache, cache_obj_t *obj,
  *
  * @param cache
  */
-static inline int64_t cache_get_occupied_byte_default(const cache_t *cache) {
-  return cache->occupied_byte;
-}
+static inline int64_t cache_get_occupied_byte_default(const cache_t *cache) { return cache->occupied_byte; }
 
 /**
  * @brief get the number of objects in the cache, this is the default
@@ -282,21 +275,13 @@ static inline int64_t cache_get_occupied_byte_default(const cache_t *cache) {
  *
  * @param cache
  */
-static inline int64_t cache_get_n_obj_default(const cache_t *cache) {
-  return cache->n_obj;
-}
+static inline int64_t cache_get_n_obj_default(const cache_t *cache) { return cache->n_obj; }
 
-static inline int64_t cache_get_reference_time(const cache_t *cache) {
-  return cache->n_req;
-}
+static inline int64_t cache_get_reference_time(const cache_t *cache) { return cache->n_req; }
 
-static inline int64_t cache_get_logical_time(const cache_t *cache) {
-  return cache->n_req;
-}
+static inline int64_t cache_get_logical_time(const cache_t *cache) { return cache->n_req; }
 
-static inline int64_t cache_get_virtual_time(const cache_t *cache) {
-  return cache->n_req;
-}
+static inline int64_t cache_get_virtual_time(const cache_t *cache) { return cache->n_req; }
 
 /**
  * @brief print cache stat
@@ -307,10 +292,8 @@ static inline void print_cache_stat(const cache_t *cache) {
   printf(
       "%s cache size %ld, occupied size %ld, n_req %ld, n_obj %ld, default TTL "
       "%ld, per_obj_metadata_size %d\n",
-      cache->cache_name, (long)cache->cache_size,
-      (long)cache->get_occupied_byte(cache), (long)cache->n_req,
-      (long)cache->get_n_obj(cache), (long)cache->default_ttl,
-      (int)cache->obj_md_size);
+      cache->cache_name, (long)cache->cache_size, (long)cache->get_occupied_byte(cache), (long)cache->n_req,
+      (long)cache->get_n_obj(cache), (long)cache->default_ttl, (int)cache->obj_md_size);
 }
 
 /**
@@ -319,14 +302,12 @@ static inline void print_cache_stat(const cache_t *cache) {
  * @param cache
  * @param age
  */
-static inline void record_log2_eviction_age(cache_t *cache,
-                                            const unsigned long long age) {
+static inline void record_log2_eviction_age(cache_t *cache, const unsigned long long age) {
   int age_log2 = age == 0 ? 0 : LOG2_ULL(age);
   cache->log_eviction_age_cnt[age_log2] += 1;
 }
 
-static inline void record_eviction_age(cache_t *cache, cache_obj_t *obj,
-                                       const int64_t age) {
+static inline void record_eviction_age(cache_t *cache, cache_obj_t *obj, const int64_t age) {
 #if defined(TRACK_EVICTION_V_AGE)
   // note that the frequency is not correct for QDLP and Clock
   if (obj->obj_id % 101 == 0) {
@@ -363,8 +344,7 @@ bool dump_eviction_age(const cache_t *cache, const char *ofilepath);
  * @param ofilepath
  * @return whether the dump is successful
  */
-bool dump_cached_obj_age(cache_t *cache, const request_t *req,
-                         const char *ofilepath);
+bool dump_cached_obj_age(cache_t *cache, const request_t *req, const char *ofilepath);
 
 #ifdef __cplusplus
 }
