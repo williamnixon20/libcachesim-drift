@@ -7,14 +7,14 @@
 
 #include "../../include/libCacheSim/cache.h"
 #include "../../include/libCacheSim/evictionAlgo.h"
-
+#include "internal.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 static inline cache_t *create_cache(const char *trace_path, const char *eviction_algo, const uint64_t cache_size,
                                     const char *eviction_params, const bool consider_obj_metadata,
-                                    int retrain_interval) {
+                                    struct arguments *args) {
   common_cache_params_t cc_params = {
       .cache_size = cache_size,
       .default_ttl = 86400 * 300,
@@ -135,8 +135,8 @@ static inline cache_t *create_cache(const char *trace_path, const char *eviction
     cache = Sieve_init(cc_params, eviction_params);
 #ifdef ENABLE_GLCACHE
   } else if (strcasecmp(eviction_algo, "GLCache") == 0 || strcasecmp(eviction_algo, "gl-cache") == 0) {
-    printf("GLCache, Retrain Interval: %d\n", retrain_interval);
-    cache = GLCache_init(cc_params, eviction_params, retrain_interval);
+    cache = GLCache_init(cc_params, eviction_params, args->retrain_interval, args->should_dump,
+                         args->should_load_initial_model, args->initial_model_file);
 #endif
 #ifdef ENABLE_LRB
   } else if (strcasecmp(eviction_algo, "lrb") == 0) {

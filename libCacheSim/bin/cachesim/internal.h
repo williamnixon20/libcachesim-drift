@@ -40,6 +40,10 @@ struct arguments {
   double sample_ratio;
   int n_thread;
   int retrain_interval;
+  bool should_dump;
+  bool should_load_initial_model;
+  char initial_model_file[516];
+
   int64_t n_req; /* number of requests to process */
 
   bool verbose;

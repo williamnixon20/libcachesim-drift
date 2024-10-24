@@ -12,11 +12,16 @@ for file in $data_dir/io_traces.ns*; do
         echo "$file"
         continue
     fi
-    # ## if size of file is larger than 10 mb, skip
-    # if [[ $(stat -c%s "$file") -gt 1000000000 ]]; then
-    #     echo "Skipping $file because file size is larger than 10 mb"
+    # # if contains 235, continue
+    # if [[ ! $file == *"235"* ]]; then
+    #     echo "Skipping $file because it contains 235"
     #     continue
     # fi
+    ## if size of file is larger than 10 mb, skip
+    if [[ $(stat -c%s "$file") -gt 20000000 ]]; then
+        echo "Skipping $file because file size is larger than 10 mb"
+        continue
+    fi
 
     # Extract the filename without the directory for use in commands
     filename=$(basename "$file")
@@ -24,20 +29,22 @@ for file in $data_dir/io_traces.ns*; do
     echo $filename
     echo $(stat -c%s "$file")
 
-    if [[ -f "result_/$filename/done" ]]; then
-        echo "Skipping $filename because done file is found exp results"
+    if [[ -f "result__/$filename/done" ]]; then
+        # echo "Skipping $filename because done file is found exp results"
         continue
     fi
-
-    mkdir -p result_/$filename
-    cd result_/$filename
+    rm -rf result__/$filename
+    mkdir -p result__/$filename
+    cd result__/$filename
+    mkdir dump
     echo "CURR DIR $(pwd)"
 
     # python3 ../../plot_mrc_time.py --tracepath $file --algos=fifo,lru,lfu,arc,lecar,lhd,tinylfu,s3fifo,sieve --miss-ratio-type="accu" --verbose 
     # python3 ../../plot_mrc_size.py --tracepath $file --algos=fifo,lru,lfu,arc,lecar,lhd,tinylfu,s3fifo,sieve --sizes=0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.3,0.4
     # python3 ../../plot_mrc_size.py --tracepath $file --algos=glcache --sizes=0.001,0.005,0.01,0.05,0.1,0.2,0.3
     # python3 ../../plot_mrc_time.py --tracepath $file --algos=gl-cache,lhd,s3fifo --miss-ratio-type="accu" --verbose 
-    python3 ../../plot_mrc_retrain_glcache.py --tracepath $file --algos=gl-cache --miss-ratio-type="accu" --verbose 
+    # python3 ../../plot_mrc_retrain_glcache.py --tracepath $file --algos=gl-cache --miss-ratio-type="accu" --verbose 
+    python3 ../../plot_mrc_glcache_multimodel.py --tracepath $file --algos=gl-cache --miss-ratio-type="accu" --verbose 
     touch done
 
     cd $orig_dir

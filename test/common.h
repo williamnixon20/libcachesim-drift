@@ -227,7 +227,7 @@ static cache_t *create_test_cache(const char *alg_name, common_cache_params_t cc
           "type=learned, "
           "train-source-y=online, rank-intvl=0.05, retrain-intvl=172800";
     }
-    cache = GLCache_init(cc_params, init_params, 172800);
+    cache = GLCache_init(cc_params, init_params, 172800, false, false, NULL);
 #endif
   } else if (strcasecmp(alg_name, "LHD") == 0) {
     cache = LHD_init(cc_params, NULL);

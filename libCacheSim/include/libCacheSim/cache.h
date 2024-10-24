@@ -107,6 +107,9 @@ struct cache {
   cache_print_cache_func_ptr print_cache;
 
   int retrain_interval;
+  bool should_dump;
+  bool should_load_initial_model;
+  char initial_model_file[516];
 
   admissioner_t *admissioner;
 

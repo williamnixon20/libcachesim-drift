@@ -6,8 +6,7 @@
 #include "obj.h"
 #include "utils.h"
 
-static void debug_print_feature_matrix(const DMatrixHandle handle,
-                                       int print_n_row) {
+static void debug_print_feature_matrix(const DMatrixHandle handle, int print_n_row) {
   unsigned long out_len;
   const float *out_data;
   XGDMatrixGetFloatInfo(handle, "label", &out_len, &out_data);
@@ -43,8 +42,7 @@ static void train_xgboost(cache_t *cache) {
   safe_call(XGBoosterSetParam(learner->booster, "verbosity", "1"));
   safe_call(XGBoosterSetParam(learner->booster, "nthread", "1"));
 #if OBJECTIVE == REG
-  safe_call(
-      XGBoosterSetParam(learner->booster, "objective", "reg:squarederror"));
+  safe_call(XGBoosterSetParam(learner->booster, "objective", "reg:squarederror"));
 #elif OBJECTIVE == LTR
   safe_call(XGBoosterSetParam(learner->booster, "objective", "rank:pairwise"));
 #endif
@@ -53,8 +51,7 @@ static void train_xgboost(cache_t *cache) {
     // Update the model performance for each iteration
     safe_call(XGBoosterUpdateOneIter(learner->booster, i, learner->train_dm));
     if (learner->n_valid_samples < 10) continue;
-    safe_call(XGBoosterEvalOneIter(learner->booster, i, eval_dmats, eval_names,
-                                   2, &eval_result));
+    safe_call(XGBoosterEvalOneIter(learner->booster, i, eval_dmats, eval_names, 2, &eval_result));
 #if OBJECTIVE == REG
     char *train_pos = strstr(eval_result, "train-rmse:") + 11;
     char *valid_pos = strstr(eval_result, "valid-rmse") + 11;
@@ -92,36 +89,61 @@ static void train_xgboost(cache_t *cache) {
       "%.2lf hour, cache size %.2lf MB, vtime %ld, train/valid %d/%d samples, "
       "%d trees, "
       "rank intvl %.4lf\n",
-      (double)params->curr_rtime / 3600.0,
-      (double)cache->cache_size / 1024.0 / 1024.0, (long)params->curr_vtime,
-      (int)learner->n_train_samples, (int)learner->n_valid_samples,
-      learner->n_trees, params->rank_intvl);
+      (double)params->curr_rtime / 3600.0, (double)cache->cache_size / 1024.0 / 1024.0, (long)params->curr_vtime,
+      (int)learner->n_train_samples, (int)learner->n_valid_samples, learner->n_trees, params->rank_intvl);
 
-#ifdef DUMP_MODEL
-  {
-    static __thread char s[128];
-    snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
-    safe_call(XGBoosterSaveModel(learner->booster, s));
-    INFO("dump model %s\n", s);
+  if (cache->should_dump) {
+    {
+      static __thread char s[128];
+      snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
+      safe_call(XGBoosterSaveModel(learner->booster, s));
+      INFO("dump model %s\n", s);
+    }
   }
-#endif
+  // #ifdef DUMP_MODEL
+  //   {
+  //     static __thread char s[128];
+  //     snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
+  //     safe_call(XGBoosterSaveModel(learner->booster, s));
+  //     INFO("dump model %s\n", s);
+  //   }
+  // #endif
 }
 
+bool have_loaded = false;
 void train(cache_t *cache) {
   GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
+  learner_t *learner = &params->learner;
 
   uint64_t start_time = gettime_usec();
-#ifdef LOAD_MODEL
-  {
+
+  if (cache->should_load_initial_model) {
+    if (have_loaded) {
+      // printf("Already loaded\n");
+      return;
+    }
+    printf("Loading model\n");
+    have_loaded = true;
     static __thread char s[128];
-    snprintf(s, 128, "dump/model_%d.bin", 1);
+    snprintf(s, 128, cache->initial_model_file, 1);
+
+    safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
 
     safe_call(XGBoosterLoadModel(learner->booster, s));
     INFO("Load model %s\n", s);
+    bst_ulong num_of_features = 0;
+
+    // Assuming booster variable of type BoosterHandle is already declared
+    // and dataset is loaded and trained on booster
+    // storing the results in num_of_features variable
+    safe_call(XGBoosterGetNumFeature(learner->booster, &num_of_features));
+
+    // Printing number of features by type conversion of num_of_features variable from bst_ulong to unsigned long
+    printf("num_feature: %lu\n", (unsigned long)(num_of_features));
+  } else {
+    printf("Training XGBOOST\n");
+    train_xgboost(cache);
   }
-#else
-  train_xgboost(cache);
-#endif
 
   uint64_t end_time = gettime_usec();
   // INFO("training time %.4lf sec\n", (end_time - start_time) / 1000000.0);

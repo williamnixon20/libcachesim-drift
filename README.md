@@ -366,8 +366,10 @@ Need to be run in this folder
 cc@ray-stor:~/clio/libCacheSim/scripts/traceAnalysis$ ./run.sh /home/cc/clio/libCacheSim/_build/analyzer_result
 
 ## Hit rate over time
-1. python3 ../plot_mrc_time.py --tracepath /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns0.oracleGeneral.zst --miss-ratio-type="accu" --verbose 
+1. python3 plot_mrc_glcache_multimodel.py --tracepath /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns235.oracleGeneral.zst --algos=gl-cache
 2. python3 ../plot_mrc_size.py --tracepath /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns0.oracleGeneral.zst --algos=fifo,lru,lecar,s3fifo --sizes=0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.3,0.4
+
+./bin/cachesim /home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns235.oracleGeneral.zst oracleGeneral gl-cache 0.1 --dump-model=false --load-model=true --model-file=/home/cc/clio/libCacheSim/_build/dump/model_15.bin
 
 
 Profiling

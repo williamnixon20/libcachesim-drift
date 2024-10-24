@@ -45,6 +45,10 @@ enum argp_option_short {
   OPTION_REPORT_INTERVAL = 0x108,
   OPTION_RETRAIN_INTVL = 0x10b,
 
+  OPTION_DUMP_MODEL = 0x10c,
+  OPTION_LOAD_MODEL = 0x10d,
+  OPTION_MODEL_FILE = 0x10e,
+
   OPTION_PREFETCH_ALGO = 'p',
   OPTION_PREFETCH_PARAMS = 0x109,
   OPTION_PRINT_HEAD_REQ = 0x10a,
@@ -85,7 +89,9 @@ static struct argp_option options[] = {
     {"verbose", OPTION_VERBOSE, "1", 0, "Produce verbose output", 10},
     {"print-head-req", OPTION_PRINT_HEAD_REQ, "false", 0, "Print the first few requests", 10},
     {"retrain-intvl", OPTION_RETRAIN_INTVL, "86400", 0, "retrain interval", 10},
-
+    {"dump-model", OPTION_DUMP_MODEL, "false", 0, "dump model to file", 10},
+    {"load-model", OPTION_LOAD_MODEL, "false", 0, "load model from file", 10},
+    {"model-file", OPTION_MODEL_FILE, "model", 0, "model file path", 10},
     {0}};
 
 /*
@@ -178,6 +184,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->retrain_interval = atol(arg);
       printf("retrain interval: %d\n", arguments->retrain_interval);
       break;
+    case OPTION_DUMP_MODEL:
+      arguments->should_dump = is_true(arg) ? true : false;
+      break;
+    case OPTION_LOAD_MODEL:
+      arguments->should_load_initial_model = is_true(arg) ? true : false;
+      break;
+    case OPTION_MODEL_FILE:
+      strncpy(arguments->initial_model_file, arg, sizeof(arguments->initial_model_file));
+      break;
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -228,6 +243,9 @@ static void init_arg(struct arguments *args) {
   args->sample_ratio = 1.0;
   args->print_head_req = true;
   args->retrain_interval = 86400;
+  args->should_dump = false;
+  args->should_load_initial_model = false;
+  memset(args->initial_model_file, 0, sizeof(args->initial_model_file));
 
   for (int i = 0; i < N_MAX_ALGO; i++) {
     args->eviction_algo[i] = NULL;
@@ -276,6 +294,9 @@ void parse_cmd(int argc, char *argv[], struct arguments *args) {
   args->trace_path = args->args[0];
   args->trace_type_str = args->args[1];
   parse_eviction_algo(args, args->args[2]);
+  printf("MODEL PATH %s\n", args->initial_model_file);
+  printf("SHOULD LOAD MODEL %d\n", args->should_load_initial_model);
+  printf("SHOULD DUMP MODEL %d\n", args->should_dump);
 
   /* the third parameter is the cache size, but we cannot parse it now
    * because we allow user to specify the cache size as fraction of the
@@ -332,7 +353,7 @@ void parse_cmd(int argc, char *argv[], struct arguments *args) {
     for (int j = 0; j < args->n_cache_size; j++) {
       int idx = i * args->n_cache_size + j;
       args->caches[idx] = create_cache(args->trace_path, args->eviction_algo[i], args->cache_sizes[j],
-                                       args->eviction_params, args->consider_obj_metadata, args->retrain_interval);
+                                       args->eviction_params, args->consider_obj_metadata, args);
 
       if (args->admission_algo != NULL) {
         args->caches[idx]->admissioner = create_admissioner(args->admission_algo, args->admission_params);
