@@ -282,17 +282,6 @@ static void prepare_training_data_per_package(cache_t *cache) {
                                   learner->n_valid_samples));
 
 #if OBJECTIVE == LTR
-  // set group used for MAP and NDCG
-  // const int n_group = 20;
-  // unsigned int group[n_group];
-  // for (int i = 0; i < n_group; i++) {
-  //   group[i] = learner->n_train_samples/n_group;
-  // }
-  // group[(n_group - 1)] = learner->n_train_samples -
-  // (learner->n_train_samples/n_group) * (n_group - 1);
-  // safe_call(XGDMatrixSetUIntInfo(learner->train_dm, "group", group,
-  // n_group));
-
   safe_call(XGDMatrixSetUIntInfo(learner->train_dm, "group",
                                  &learner->n_train_samples, 1));
   safe_call(XGDMatrixSetUIntInfo(learner->valid_dm, "group",

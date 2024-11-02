@@ -24,3 +24,9 @@ scripts/traceAnalysis/figure_named/
 xgboost/
 zstd-1.5.0/
 LightGBM/
+cloudPhysicsIO*
+twitter*
+stat*
+traceStat*
+scripts/dump/
+scripts/result_matchmaker/

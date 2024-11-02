@@ -124,7 +124,7 @@ static void GLCache_parse_init_params(const char *cache_specific_params, GLCache
  * @param cache_specific_params cache specific parameters, see parse_params
  */
 cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cache_specific_params,
-                      int retrain_interval, bool should_dump, bool should_load, const char *model_file) {
+                      int retrain_interval, bool should_dump, bool should_load, const char *model_file, bool is_matchmaker, const char *label) {
   cache_t *cache = cache_struct_init("GLCache", ccache_params, cache_specific_params);
 
   if (ccache_params.consider_obj_metadata) {
@@ -140,6 +140,7 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cac
   GLCache_params_t *params = my_malloc(GLCache_params_t);
   memset(params, 0, sizeof(GLCache_params_t));
   cache->eviction_params = params;
+  cache->is_matchmaker = is_matchmaker;
 
   set_default_params(params);
 
@@ -191,7 +192,7 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cac
   cache->should_dump = should_dump;
   cache->should_load_initial_model = should_load;
   strncpy(cache->initial_model_file, model_file, sizeof(cache->initial_model_file));
-
+  strncpy(cache->label, label, sizeof(cache->label));
   INFO(
       "%s, %.0lfMB, segment_size %d, training_interval %d, source %d, "
       "rank interval %.2lf, merge consecutive segments %d, "

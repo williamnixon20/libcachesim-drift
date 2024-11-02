@@ -5,8 +5,7 @@
 #include "obj.h"
 #include "utils.h"
 
-static inline void resize_matrix(GLCache_params_t *params, feature_t **x_p,
-                                 pred_t **y_p, int32_t *size_p,
+static inline void resize_matrix(GLCache_params_t *params, feature_t **x_p, pred_t **y_p, int32_t *size_p,
                                  int64_t new_size) {
   learner_t *learner = &params->learner;
   if ((*size_p) != 0) {
@@ -35,8 +34,7 @@ static int prepare_inference_data(cache_t *cache) {
    * if the inference data matrix is not big enough,
    * we resize the matrix */
   if (learner->inf_matrix_n_row < params->n_in_use_segs) {
-    resize_matrix(params, &learner->inference_x, &learner->pred,
-                  &learner->inf_matrix_n_row, params->n_in_use_segs * 2);
+    resize_matrix(params, &learner->inference_x, &learner->pred, &learner->inf_matrix_n_row, params->n_in_use_segs * 2);
   }
 
   feature_t *x = learner->inference_x;
@@ -50,8 +48,7 @@ static int prepare_inference_data(cache_t *cache) {
     segment_t *curr_seg = params->buckets[bi].first_seg;
     for (int si = 0; si < params->buckets[bi].n_in_use_segs; si++) {
       if (--credit == 0) {
-        prepare_one_row(cache, curr_seg, false, &x[learner->n_feature * n_segs],
-                        NULL);
+        prepare_one_row(cache, curr_seg, false, &x[learner->n_feature * n_segs], NULL);
         curr_seg = curr_seg->next_seg;
         n_segs++;
 
@@ -64,8 +61,7 @@ static int prepare_inference_data(cache_t *cache) {
   if (params->learner.n_inference > 0) {
     safe_call(XGDMatrixFree(learner->inf_dm));
   }
-  safe_call(XGDMatrixCreateFromMat(learner->inference_x, n_segs,
-                                   learner->n_feature, -2, &learner->inf_dm));
+  safe_call(XGDMatrixCreateFromMat(learner->inference_x, n_segs, learner->n_feature, -2, &learner->inf_dm));
 
   safe_call(XGDMatrixSetUIntInfo(learner->inf_dm, "group", &n_segs, 1));
 
@@ -90,8 +86,7 @@ void inference_xgboost(cache_t *cache) {
   bst_ulong out_len = 0;
   // TODO: use XGBoosterPredictFromDense to avoid copy
   // https://github.com/dmlc/xgboost/blob/36346f8f563ef79bae94604e60483fb0bf4c2661/demo/c-api/inference/inference.c
-  safe_call(XGBoosterPredict(learner->booster, learner->inf_dm, 0, 0, 0,
-                             &out_len, &pred));
+  safe_call(XGBoosterPredict(learner->booster, learner->inf_dm, 0, 0, 0, &out_len, &pred));
   DEBUG_ASSERT(out_len == n_segs);
 
   segment_t **ranked_segs = params->seg_sel.ranked_segs;
@@ -119,8 +114,7 @@ void inference_xgboost(cache_t *cache) {
         }
 #endif
 
-        if (params->buckets[curr_seg->bucket_id].n_in_use_segs <
-            params->n_merge + 1) {
+        if (params->buckets[curr_seg->bucket_id].n_in_use_segs < params->n_merge + 1) {
           // if the segment is the last segment of a bucket or the bucket does
           // not have enough segments
           curr_seg->pred_utility += INT32_MAX / 2;
@@ -134,11 +128,9 @@ void inference_xgboost(cache_t *cache) {
       }
 
 #ifdef DUMP_INFERENCE_DATA
-      fprintf(f, "%d %f/%lf: ", n_segs, pred[n_segs],
-              cal_seg_utility(cache, curr_seg, true));
+      fprintf(f, "%d %f/%lf: ", n_segs, pred[n_segs], cal_seg_utility(cache, curr_seg, true));
       for (int j = 0; j < learner->n_feature; j++) {
-        fprintf(f, "%f,",
-                learner->inference_x[learner->n_feature * n_segs + j]);
+        fprintf(f, "%f,", learner->inference_x[learner->n_feature * n_segs + j]);
       }
       fprintf(f, "\n");
 #endif

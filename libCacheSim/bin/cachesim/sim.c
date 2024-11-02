@@ -84,10 +84,10 @@ void simulate(reader_t *reader, cache_t *cache, int report_interval, int warmup_
     }
     snprintf(output_str, 1024,
              "%s %s cache size %8s, %16lu req, miss ratio %.4lf, throughput "
-             "%.2lf MQPS %d Retrain-Interval %s Model File ID \n",
+             "%.2lf MQPS, %d Retrain-Interval, %s Model File ID, %s LABEL, %d is_matchmaker\n",
              reader->trace_path, cache->cache_name, size_str, (unsigned long)req_cnt,
              (double)miss_cnt / (double)req_cnt, (double)req_cnt / 1000000.0 / runtime, cache->retrain_interval,
-             ofilepath);
+             ofilepath, cache->label, cache->is_matchmaker);
   } else {
     snprintf(output_str, 1024,
              "%s %s cache size %8ld, %16lu req, miss ratio %.4lf, throughput "

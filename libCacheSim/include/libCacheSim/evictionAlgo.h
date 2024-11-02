@@ -148,7 +148,7 @@ cache_t *MClock_init(const common_cache_params_t ccache_params, const char *cach
 #if defined(ENABLE_GLCACHE) && ENABLE_GLCACHE == 1
 
 cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cache_specific_params,
-                      int retrain_interval, bool should_dump, bool should_load, const char *model_file);
+                      int retrain_interval, bool should_dump, bool should_load, const char *model_file, bool is_matchmaker, const char *label);
 
 #endif
 

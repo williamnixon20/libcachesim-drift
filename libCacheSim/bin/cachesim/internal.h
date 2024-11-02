@@ -42,7 +42,9 @@ struct arguments {
   int retrain_interval;
   bool should_dump;
   bool should_load_initial_model;
+  bool is_matchmaker;
   char initial_model_file[516];
+  char cache_label[516];
 
   int64_t n_req; /* number of requests to process */
 

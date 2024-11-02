@@ -20,8 +20,8 @@ process_file() {
         return
     fi
 
-    # Check if file size is larger than 20 MB
-    if [[ $(stat -c%s "$file") -gt 200000000 ]]; then
+    # Check if file size is larger than 200 MB
+    if [[ $(stat -c%s "$file") -gt 1000000000 ]]; then
         echo "Skipping $file because file size is larger than 20 MB"
         return
     fi
@@ -40,7 +40,7 @@ process_file() {
     mkdir dump
 
     # Run your Python scripts (uncomment the lines you want to run)
-    python3 ../../plot_mrc_glcache_multimodel.py --tracepath $file --algos=gl-cache --miss-ratio-type="accu" --verbose 
+    python3 ../../plot_mrc_glcache_matchmaker_concept.py --tracepath $file --algos=gl-cache --miss-ratio-type="accu" --verbose 
     
     touch done
 
@@ -55,6 +55,7 @@ export data_dir
 
 # # Loop through each file and process in parallel
 # find "$data_dir" -name "*oracleGeneral*" | echo "Processing file name $(xargs -n 1 basename)" | xargs -n 1 -P 30 bash -c 'process_file "$@"' _
-find "$data_dir" -name "*oracleGeneral*" | xargs -n 1 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
+# find "$data_dir" -name "*oracleGeneral*" | xargs -n 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
+find "$data_dir" -name "*oracleGeneral*" | xargs -P 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
 
-## /home/cc/libcachesim-private/_build/bin/cachesim /home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns251.oracleGeneral.zst oracleGeneral gl-cache 0.1 --report-interval 3600 --ignore-obj-size 0 --num-thread 48 --dump-model true --load-model false --retrain-intvl 172800
+## /home/cc/libcachesim-private/_build/bin/cachesim /home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns251.oracleGeneral.zst oracleGeneral gl-cache 0.1 --report-interval 3600 --ignore-obj-size 0 --num-thread 48 --dump-model true --load-model false --matchmaker true --label matchmaki --retrain-intvl 172800

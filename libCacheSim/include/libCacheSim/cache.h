@@ -110,6 +110,8 @@ struct cache {
   bool should_dump;
   bool should_load_initial_model;
   char initial_model_file[516];
+  bool is_matchmaker;
+  char label[516];
 
   admissioner_t *admissioner;
 

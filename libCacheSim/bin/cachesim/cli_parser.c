@@ -44,6 +44,8 @@ enum argp_option_short {
   OPTION_SAMPLE_RATIO = 's',
   OPTION_REPORT_INTERVAL = 0x108,
   OPTION_RETRAIN_INTVL = 0x10b,
+  OPTION_LABEL_CACHE = 'l',
+  OPTION_MATCHMAKER = 0x20a,
 
   OPTION_DUMP_MODEL = 0x10c,
   OPTION_LOAD_MODEL = 0x10d,
@@ -92,6 +94,8 @@ static struct argp_option options[] = {
     {"dump-model", OPTION_DUMP_MODEL, "false", 0, "dump model to file", 10},
     {"load-model", OPTION_LOAD_MODEL, "false", 0, "load model from file", 10},
     {"model-file", OPTION_MODEL_FILE, "model", 0, "model file path", 10},
+    {"label", OPTION_LABEL_CACHE, "cache", 0, "label for the cache", 10},
+    {"matchmaker", OPTION_MATCHMAKER, "false", 0, "whether the cache is a matchmaker", 10},
     {0}};
 
 /*
@@ -193,6 +197,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPTION_MODEL_FILE:
       strncpy(arguments->initial_model_file, arg, sizeof(arguments->initial_model_file));
       break;
+    case OPTION_LABEL_CACHE:
+      strncpy(arguments->cache_label, arg, sizeof(arguments->cache_label));
+      break;
+    case OPTION_MATCHMAKER:
+      arguments->is_matchmaker = is_true(arg) ? true : false;
+      break;
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -239,11 +249,13 @@ static void init_arg(struct arguments *args) {
   args->n_thread = n_cores();
   args->warmup_sec = -1;
   memset(args->ofilepath, 0, OFILEPATH_LEN);
+  memset(args->cache_label, 0, sizeof(args->cache_label));
   args->n_req = -1;
   args->sample_ratio = 1.0;
   args->print_head_req = true;
   args->retrain_interval = 86400;
   args->should_dump = false;
+  args->is_matchmaker = false;
   args->should_load_initial_model = false;
   memset(args->initial_model_file, 0, sizeof(args->initial_model_file));
 
@@ -297,6 +309,8 @@ void parse_cmd(int argc, char *argv[], struct arguments *args) {
   printf("MODEL PATH %s\n", args->initial_model_file);
   printf("SHOULD LOAD MODEL %d\n", args->should_load_initial_model);
   printf("SHOULD DUMP MODEL %d\n", args->should_dump);
+  printf("LABEL %s\n", args->cache_label);
+  printf("MATCHMAKER %d\n", args->is_matchmaker);
 
   /* the third parameter is the cache size, but we cannot parse it now
    * because we allow user to specify the cache size as fraction of the
