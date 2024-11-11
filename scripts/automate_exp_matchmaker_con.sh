@@ -26,7 +26,7 @@ process_file() {
         return
     fi
 
-    base_result_dir="result_matchmaker"
+    base_result_dir="result_matchmaker_complete"
 
     # Check if processing is already done
     if [[ -f "$base_result_dir/$filename/done" ]]; then
@@ -56,6 +56,26 @@ export data_dir
 # # Loop through each file and process in parallel
 # find "$data_dir" -name "*oracleGeneral*" | echo "Processing file name $(xargs -n 1 basename)" | xargs -n 1 -P 30 bash -c 'process_file "$@"' _
 # find "$data_dir" -name "*oracleGeneral*" | xargs -n 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
-find "$data_dir" -name "*oracleGeneral*" | xargs -P 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
+# find "$data_dir" -name "*oracleGeneral*" | xargs -P 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
 
-## /home/cc/libcachesim-private/_build/bin/cachesim /home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns251.oracleGeneral.zst oracleGeneral gl-cache 0.1 --report-interval 3600 --ignore-obj-size 0 --num-thread 48 --dump-model true --load-model false --matchmaker true --label matchmaki --retrain-intvl 172800
+
+files=(
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns119.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns202.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns267.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns292.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns3.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns315.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns346.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns370.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns506.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns525.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns568.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns659.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns720.oracleGeneral.zst"
+    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns90.oracleGeneral.zst"
+)
+
+
+printf "%s\n" "${files[@]}" | xargs -P 30 -I {} bash -c 'process_file "{}"' 
+

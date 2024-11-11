@@ -4,38 +4,6 @@
 #include "obj.h"
 #include "utils.h"
 
-static void dump_training_data(cache_t *cache) {
-  GLCache_params_t *params = cache->eviction_params;
-  learner_t *learner = &params->learner;
-
-  static __thread char filename[24];
-  snprintf(filename, 24, "train_data_%d", learner->n_train);
-
-  INFO("dump training data %d\n", learner->n_train);
-
-  FILE *f = fopen(filename, "w");
-  fprintf(f, "# y: x\n");
-  for (int m = 0; m < learner->n_train_samples; m++) {
-    fprintf(f, "%f: ", learner->train_y[m]);
-    for (int n = 0; n < learner->n_feature; n++) {
-      fprintf(f, "%6f,", learner->train_x[learner->n_feature * m + n]);
-    }
-    fprintf(f, "\n");
-  }
-  fclose(f);
-
-  snprintf(filename, 24, "valid_data_%d", learner->n_train);
-  f = fopen(filename, "w");
-  for (int m = 0; m < learner->n_valid_samples; m++) {
-    fprintf(f, "%f: ", learner->valid_y[m]);
-    for (int n = 0; n < learner->n_feature; n++) {
-      fprintf(f, "%6f,", learner->valid_x[learner->n_feature * m + n]);
-    }
-    fprintf(f, "\n");
-  }
-  fclose(f);
-}
-
 /* currently we snapshot segments after each training, then we collect segment
  * utility for the snapshotted segments over time, when it is time to retrain,
  * we used the snapshotted segment features and calculated utility to train a
@@ -93,8 +61,7 @@ static void clean_training_segs(cache_t *cache) {
  * @param y: label, for training
  *
  */
-bool prepare_one_row(cache_t *cache, segment_t *curr_seg, bool is_training_data,
-                     feature_t *x, train_y_t *y) {
+bool prepare_one_row(cache_t *cache, segment_t *curr_seg, bool is_training_data, feature_t *x, train_y_t *y) {
   GLCache_params_t *params = cache->eviction_params;
   learner_t *learner = &params->learner;
 
@@ -113,12 +80,9 @@ bool prepare_one_row(cache_t *cache, segment_t *curr_seg, bool is_training_data,
 #endif
 
   for (int k = 0; k < N_FEATURE_TIME_WINDOW; k++) {
-    x[N_FEATURE_NORMAL + k * 3 + 0] =
-        (feature_t)curr_seg->feature.n_hit_per_min[k];
-    x[N_FEATURE_NORMAL + k * 3 + 1] =
-        (feature_t)curr_seg->feature.n_hit_per_ten_min[k];
-    x[N_FEATURE_NORMAL + k * 3 + 2] =
-        (feature_t)curr_seg->feature.n_hit_per_hour[k];
+    x[N_FEATURE_NORMAL + k * 3 + 0] = (feature_t)curr_seg->feature.n_hit_per_min[k];
+    x[N_FEATURE_NORMAL + k * 3 + 1] = (feature_t)curr_seg->feature.n_hit_per_ten_min[k];
+    x[N_FEATURE_NORMAL + k * 3 + 2] = (feature_t)curr_seg->feature.n_hit_per_hour[k];
   }
 
   for (int i = 0; i < params->learner.n_feature; i++) {
@@ -190,8 +154,7 @@ static inline void copy_seg_to_train_matrix(cache_t *cache, segment_t *seg) {
   l->train_y_oracle[row_idx] = cal_seg_utility(cache, seg, true);
 #endif
 
-  prepare_one_row(cache, seg, true, &l->train_x[row_idx * l->n_feature],
-                  &l->train_y[row_idx]);
+  prepare_one_row(cache, seg, true, &l->train_x[row_idx * l->n_feature], &l->train_y[row_idx]);
 }
 
 /** @brief sample some segments and copy their features to training data matrix
@@ -205,11 +168,9 @@ void snapshot_segs_to_training_data(cache_t *cache) {
   segment_t *curr_seg = NULL;
 
 #ifdef TRAIN_KEEP_HALF
-  double sample_ratio = MAX(
-      (double)params->n_in_use_segs / (double)(l->train_matrix_n_row / 2), 1.0);
+  double sample_ratio = MAX((double)params->n_in_use_segs / (double)(l->train_matrix_n_row / 2), 1.0);
 #else
-  double sample_ratio =
-      MAX((double)params->n_in_use_segs / (double)l->train_matrix_n_row, 1.0);
+  double sample_ratio = MAX((double)params->n_in_use_segs / (double)l->train_matrix_n_row, 1.0);
 #endif
 
   double credit = 0;  // when credit reaches sample ratio, we sample a segment
@@ -269,23 +230,19 @@ static void prepare_training_data_per_package(cache_t *cache) {
   GLCache_params_t *params = cache->eviction_params;
   learner_t *learner = &params->learner;
 
-  safe_call(XGDMatrixCreateFromMat(learner->train_x, learner->n_train_samples,
-                                   learner->n_feature, -2, &learner->train_dm));
+  safe_call(
+      XGDMatrixCreateFromMat(learner->train_x, learner->n_train_samples, learner->n_feature, -2, &learner->train_dm));
 
-  safe_call(XGDMatrixCreateFromMat(learner->valid_x, learner->n_valid_samples,
-                                   learner->n_feature, -2, &learner->valid_dm));
+  safe_call(
+      XGDMatrixCreateFromMat(learner->valid_x, learner->n_valid_samples, learner->n_feature, -2, &learner->valid_dm));
 
-  safe_call(XGDMatrixSetFloatInfo(learner->train_dm, "label", learner->train_y,
-                                  learner->n_train_samples));
+  safe_call(XGDMatrixSetFloatInfo(learner->train_dm, "label", learner->train_y, learner->n_train_samples));
 
-  safe_call(XGDMatrixSetFloatInfo(learner->valid_dm, "label", learner->valid_y,
-                                  learner->n_valid_samples));
+  safe_call(XGDMatrixSetFloatInfo(learner->valid_dm, "label", learner->valid_y, learner->n_valid_samples));
 
 #if OBJECTIVE == LTR
-  safe_call(XGDMatrixSetUIntInfo(learner->train_dm, "group",
-                                 &learner->n_train_samples, 1));
-  safe_call(XGDMatrixSetUIntInfo(learner->valid_dm, "group",
-                                 &learner->n_valid_samples, 1));
+  safe_call(XGDMatrixSetUIntInfo(learner->train_dm, "group", &learner->n_train_samples, 1));
+  safe_call(XGDMatrixSetUIntInfo(learner->valid_dm, "group", &learner->n_valid_samples, 1));
 #endif
 }
 
@@ -317,8 +274,7 @@ void prepare_training_data(cache_t *cache) {
   int n = learner->n_train_samples;
   int n_candidate = (int)(n * params->rank_intvl);
 
-  if (y_sort == NULL)
-    y_sort = my_malloc_n(train_y_t, learner->train_matrix_n_row);
+  if (y_sort == NULL) y_sort = my_malloc_n(train_y_t, learner->train_matrix_n_row);
   memcpy(y_sort, learner->train_y, sizeof(train_y_t) * n);
   qsort(y_sort, n, sizeof(train_y_t), cmp_train_y);
 
@@ -326,8 +282,7 @@ void prepare_training_data(cache_t *cache) {
   train_y_cutoffs[3] = y_sort[n_candidate * 3];
   train_y_cutoffs[2] = y_sort[n_candidate * 6];
   train_y_cutoffs[1] = y_sort[n_candidate * 6 + (n - n_candidate * 6) / 2];
-  train_y_cutoffs[0] =
-      y_sort[n - 1] + 1;  // to make sure the largest value is always insma
+  train_y_cutoffs[0] = y_sort[n - 1] + 1;  // to make sure the largest value is always insma
 
 #if USE_DISTINCT_CUTOFF == 1
   n = n / 3 * 2;
@@ -386,8 +341,7 @@ void prepare_training_data(cache_t *cache) {
       n_zero_samples += 1;
     }
 
-    use_for_validation =
-        (i % 10 == 0 && pos_in_valid_data < learner->valid_matrix_n_row);
+    use_for_validation = (i % 10 == 0 && pos_in_valid_data < learner->valid_matrix_n_row);
 
     bool all_zero = true;
     for (int j = 0; j < n_feature; j++) {
@@ -421,8 +375,7 @@ void prepare_training_data(cache_t *cache) {
 #endif
 
 #ifdef COMPARE_TRAINING_Y
-    fprintf(ofile_cmp_y, "%lf, %lf\n", learner->train_y[i],
-            learner->train_y_oracle[i]);
+    fprintf(ofile_cmp_y, "%lf, %lf\n", learner->train_y[i], learner->train_y_oracle[i]);
 #endif
 
 #if OBJECTIVE == LTR

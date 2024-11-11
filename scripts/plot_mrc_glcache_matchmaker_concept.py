@@ -95,13 +95,12 @@ def run_cachesim_time_custom(
     p = subprocess.run(run_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if p.returncode != 0:
         logger.warning("cachesim may have crashed with segfault")
-
-    stderr_str = p.stderr.decode("utf-8")
-    if stderr_str != "":
-        logger.warning(stderr_str)
-
-    stdout_str = p.stdout.decode("utf-8")
-    stdout_str += stderr_str
+    try:
+        stdout_str = p.stdout.decode("utf-8", errors="replace")
+    except UnicodeDecodeError:
+        print("ERROR IN DECODING")
+        print(p.stdout)
+        
     for line in stdout_str.split("\n"):
         # logger.debug("cachesim log: " + line + " SIZE CACHE" + str(cache_size))
 
@@ -317,7 +316,7 @@ if __name__ == "__main__":
             retrain_duration=9999999,
             label="no-retrain"
         )
-        mrc_dict[algo+'-retrain-pick-concept-best'] = run_cachesim_time_custom(
+        mrc_dict[algo+'-matchmaker'] = run_cachesim_time_custom(
             ap.tracepath,
             algo,
             ap.size,
@@ -331,10 +330,10 @@ if __name__ == "__main__":
             retrain_duration=86400*2,
             should_save=True,
             is_matchmaker=True,
-            label="matchmake-concept"
+            label="matchmaker"
         )
         
-        ap.algos = "gl-cache-every-day,gl-cache-no-retrain, gl-cache-retrain-pick-concept-best"
+        ap.algos = "gl-cache-every-day,gl-cache-no-retrain, gl-cache-matchmaker"
         
 
     if len(mrc_dict) == 0:

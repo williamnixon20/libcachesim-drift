@@ -165,7 +165,7 @@ typedef struct obj_sel {
 typedef struct seg_sel {
   segment_t **ranked_segs;
 
-  int32_t n_ranked_segs;  // the number of ranked segments (ranked_segs.size())
+  int32_t n_ranked_segs;    // the number of ranked segments (ranked_segs.size())
   int32_t ranked_seg_size;  // the malloc-ed size of ranked_segs
                             // (ranked_segs.capacity())
   int32_t ranked_seg_pos;   // the position of the next segment to be evicted
@@ -230,22 +230,18 @@ void init_cache_state(cache_t *cache);
 
 /********************** bucket ********************/
 /* append a segment to the end of bucket */
-void append_seg_to_bucket(GLCache_params_t *params, bucket_t *bucket,
-                          segment_t *segment);
+void append_seg_to_bucket(GLCache_params_t *params, bucket_t *bucket, segment_t *segment);
 
-void remove_seg_from_bucket(GLCache_params_t *params, bucket_t *bucket,
-                            segment_t *segment);
+void remove_seg_from_bucket(GLCache_params_t *params, bucket_t *bucket, segment_t *segment);
 
 void print_bucket(cache_t *cache);
 
 /********************** segment ********************/
 segment_t *allocate_new_seg(cache_t *cache, int bucket_id);
 
-void link_new_seg_before_seg(GLCache_params_t *params, bucket_t *bucket,
-                             segment_t *old_seg, segment_t *new_seg);
+void link_new_seg_before_seg(GLCache_params_t *params, bucket_t *bucket, segment_t *old_seg, segment_t *new_seg);
 
-double find_cutoff(cache_t *cache, obj_score_type_e obj_score_type,
-                   segment_t **segs, int n_segs, int n_retain);
+double find_cutoff(cache_t *cache, obj_score_type_e obj_score_type, segment_t **segs, int n_segs, int n_retain);
 
 double cal_seg_utility(cache_t *cache, segment_t *seg, bool oracle_obj_sel);
 
@@ -281,6 +277,8 @@ void train(cache_t *cache);
 
 void inference(cache_t *cache);
 
+void proc_rank_best_model(cache_t *cache);
+
 /************* data preparation *****************/
 void snapshot_segs_to_training_data(cache_t *cache);
 
@@ -288,16 +286,14 @@ void update_train_y(GLCache_params_t *params, cache_obj_t *cache_obj);
 
 void prepare_training_data(cache_t *cache);
 
-bool prepare_one_row(cache_t *cache, segment_t *curr_seg, bool training_data,
-                     feature_t *x, train_y_t *y);
+bool prepare_one_row(cache_t *cache, segment_t *curr_seg, bool training_data, feature_t *x, train_y_t *y);
 
 /********************** helper ********************/
-#define safe_call(call)                                                      \
-  {                                                                          \
-    int err = (call);                                                        \
-    if (err != 0) {                                                          \
-      fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, \
-              XGBGetLastError());                                            \
-      exit(1);                                                               \
-    }                                                                        \
+#define safe_call(call)                                                                          \
+  {                                                                                              \
+    int err = (call);                                                                            \
+    if (err != 0) {                                                                              \
+      fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()); \
+      exit(1);                                                                                   \
+    }                                                                                            \
   }

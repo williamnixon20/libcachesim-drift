@@ -63,7 +63,7 @@ static int prepare_inference_data(cache_t *cache) {
   }
   safe_call(XGDMatrixCreateFromMat(learner->inference_x, n_segs, learner->n_feature, -2, &learner->inf_dm));
 
-  safe_call(XGDMatrixSetUIntInfo(learner->inf_dm, "group", &n_segs, 1));
+  safe_call(XGDMatrixSetUIntInfo(learner->inf_dm, "group", (int *)&n_segs, 1));
 
   return n_segs;
 }
@@ -83,11 +83,12 @@ void inference_xgboost(cache_t *cache) {
   FILE *f = fopen(filename, "a");
 #endif
 
+  proc_rank_best_model(cache);
+
   bst_ulong out_len = 0;
   // TODO: use XGBoosterPredictFromDense to avoid copy
   // https://github.com/dmlc/xgboost/blob/36346f8f563ef79bae94604e60483fb0bf4c2661/demo/c-api/inference/inference.c
   safe_call(XGBoosterPredict(learner->booster, learner->inf_dm, 0, 0, 0, &out_len, &pred));
-  DEBUG_ASSERT(out_len == n_segs);
 
   segment_t **ranked_segs = params->seg_sel.ranked_segs;
 

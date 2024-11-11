@@ -3,6 +3,8 @@ project(libCacheSim)
 set(DESCRIPTION "a high performance cache simulation library")
 set(PROJECT_WEB "http://cachesim.com")
 
+set(CMAKE_BUILD_TYPE Debug) 
+
 set(${PROJECT_NAME}_VERSION_MAJOR 0)
 set(${PROJECT_NAME}_VERSION_MINOR 1)
 set(${PROJECT_NAME}_VERSION_PATCH 0)
@@ -128,7 +130,7 @@ set(CFLAGS "$ENV{CFLAGS} "
 
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(CFLAGS "$ENV{CFLAGS} " "-Wl,--export-dynamic ")
+    set(CFLAGS "$ENV{CFLAGS} " "-Wl,--export-dynamic,-g ")
 endif ()
 
 string(REPLACE "" "" LOCAL_CFLAGS ${CFLAGS})

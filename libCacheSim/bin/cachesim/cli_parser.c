@@ -80,7 +80,7 @@ static struct argp_option options[] = {
     {0, 0, 0, 0, "Other options:"},
     {"ignore-obj-size", OPTION_IGNORE_OBJ_SIZE, "false", 0, "specify to ignore the object size from the trace", 6},
     {"output", OPTION_OUTPUT_PATH, "output", 0, "Output path", 6},
-    {"num-thread", OPTION_NUM_THREAD, "16", 0, "Number of threads if running when using default cache sizes", 6},
+    {"num-thread", OPTION_NUM_THREAD, "1", 0, "Number of threads if running when using default cache sizes", 6},
 
     {0, 0, 0, 0, "Other less common options:"},
     {"report-interval", OPTION_REPORT_INTERVAL, "3600", 0, "how often to report stat when running one cache", 10},
@@ -111,6 +111,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       if (arguments->n_thread == 0 || arguments->n_thread == -1) {
         arguments->n_thread = n_cores();
       }
+      // Set n thread to 1
+      arguments->n_thread = 1;
       break;
     case OPTION_TRACE_TYPE_PARAMS:
       arguments->trace_type_params = arg;
