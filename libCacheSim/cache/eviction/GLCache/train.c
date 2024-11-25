@@ -638,14 +638,9 @@ static void train_xgboost_matchmaker(cache_t *cache) {
   GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
   learner_t *learner = &params->learner;
 
-  // if (learner->n_train != 0) {
-  //   safe_call(XGBoosterFree(learner->booster));
-  //   safe_call(XGDMatrixFree(learner->train_dm));
-  //   safe_call(XGDMatrixFree(learner->valid_dm));
-  // }
-  // safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
-
   prepare_training_data(cache);
+  BoosterHandle newBooster;
+  learner->booster = newBooster;
 
   DMatrixHandle eval_dmats[2] = {learner->train_dm, learner->valid_dm};
   static const char *eval_names[2] = {"train", "valid"};
@@ -787,6 +782,8 @@ void train_aue(cache_t *cache) {
   // safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
 
   prepare_training_data(cache);
+  BoosterHandle newBooster;
+  learner->booster = newBooster;
 
   DMatrixHandle eval_dmats[2] = {learner->train_dm, learner->valid_dm};
   static const char *eval_names[2] = {"train", "valid"};
