@@ -51,6 +51,7 @@ def run_cachesim_time_custom(
     model_file:str = "",
     is_matchmaker:bool = False,
     is_aue:bool = False,
+    is_driftsurf:bool = False,
     label:str = "",
     algo: str = "gl-cache",
     warmup_sec: int = 86400,
@@ -94,6 +95,8 @@ def run_cachesim_time_custom(
         str(label).lower(),
         "--warmup-sec",
         str(warmup_sec),
+        "--driftsurf",
+        str(is_driftsurf).lower(),
     ]
 
     # if len(trace_format_args) > 0:
@@ -204,10 +207,11 @@ def main():
     size = args.size
 
     label_variants = {
+        "driftsurf": {"algo": "gl-cache", "retrain_duration": 86400, "should_save": True, "is_driftsurf": True, "label": "driftsurf", "warmup_sec": 86400},
         "every-day": {"algo": "gl-cache", "retrain_duration": 86400, "label": "every-day", "warmup_sec": 86400},
         # "no-retrain": {"algo": "gl-cache", "retrain_duration": 9999999, "label": "no-retrain"},
         "aue": {"algo": "gl-cache", "retrain_duration": 86400, "should_save": True, "is_aue": True, "label": "aue", "warmup_sec": 86400},
-        "matchmaker": {"algo": "gl-cache", "retrain_duration": 86400, "should_save": True, "is_matchmaker": True, "label": "matchmaker", "warmup_sec": 86400},
+        "matchmaker": {"algo": "gl-cache", "retrain_duration": 86400, "should_save": True, "is_matchmaker": True, "label": "matchmaker", "warmup_sec": 86400}
     }
     for label, params in label_variants.items():
         algo = params["algo"]
