@@ -5,13 +5,15 @@
 #include "obj.h"
 #include "utils.h"
 
+/// MATCHMAKER
 #define MAX_LEARNERS 5
 #define NUM_TREES 20
 #define MAX_LEAFS 100
 
 typedef struct {
   int index;
-  float validation_loss;
+  float score;
+  float weight;  // For AUE
 } ranking_t;
 
 typedef struct {
@@ -26,13 +28,164 @@ typedef struct {
   int model_count;                             // Number of models in the ensemble
   int num_trees;
   int leaf_distribution[MAX_LEARNERS][NUM_TREES][MAX_LEAFS];
+  bool is_matchmaker;
 } ENSEMBLE;
+
+static void train_xgboost_matchmaker(cache_t *cache);
 
 // Global ENSEMBLE instance
 ENSEMBLE global_ensemble;
-
-// Initialize the ENSEMBLE
 void ENSEMBLE_init(ENSEMBLE *ensemble) { ensemble->model_count = 0; }
+///// Main code
+
+static void train_xgboost(cache_t *cache) {
+  GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
+  learner_t *learner = &params->learner;
+
+  // safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
+
+  prepare_training_data(cache);
+
+  DMatrixHandle eval_dmats[2] = {learner->train_dm, learner->valid_dm};
+  static const char *eval_names[2] = {"train", "valid"};
+  const char *eval_result;
+  double train_loss, valid_loss, last_valid_loss = 0;
+  int n_stable_iter = 0;
+
+  safe_call(XGBoosterCreate(eval_dmats, 1, &learner->booster));
+  safe_call(XGBoosterSetParam(learner->booster, "booster", "gbtree"));
+  safe_call(XGBoosterSetParam(learner->booster, "verbosity", "1"));
+  safe_call(XGBoosterSetParam(learner->booster, "nthread", "1"));
+#if OBJECTIVE == REG
+  safe_call(XGBoosterSetParam(learner->booster, "objective", "reg:squarederror"));
+#elif OBJECTIVE == LTR
+  safe_call(XGBoosterSetParam(learner->booster, "objective", "rank:pairwise"));
+#endif
+
+  for (int i = 0; i < N_TRAIN_ITER; ++i) {
+    // Update the model performance for each iteration
+    safe_call(XGBoosterUpdateOneIter(learner->booster, i, learner->train_dm));
+    if (learner->n_valid_samples < 10) continue;
+    safe_call(XGBoosterEvalOneIter(learner->booster, i, eval_dmats, eval_names, 2, &eval_result));
+#if OBJECTIVE == REG
+    const char *train_pos = strstr(eval_result, "train-rmse:") + 11;
+    const char *valid_pos = strstr(eval_result, "valid-rmse:") + 11;
+
+    train_loss = strtof(train_pos, NULL);
+    valid_loss = strtof(valid_pos, NULL);
+
+    if (fabs(last_valid_loss - valid_loss) / valid_loss < 0.01) {
+      n_stable_iter += 1;
+      if (n_stable_iter > 2) {
+        break;
+      }
+    } else {
+      n_stable_iter = 0;
+    }
+    last_valid_loss = valid_loss;
+#elif OBJECTIVE == LTR
+    char *train_pos = strstr(eval_result, "train-map") + 10;
+    char *valid_pos = strstr(eval_result, "valid-map") + 10;
+    // DEBUG("%s\n", eval_result);
+#else
+#error
+#endif
+  }
+#ifndef __APPLE__
+  safe_call(XGBoosterBoostedRounds(learner->booster, &learner->n_trees));
+#endif
+
+  printf("EVAL RESULT: %s\n", eval_result);
+  printf(
+      "%.2lf hour, cache size %.2lf MB, vtime %ld, train/valid %d/%d samples, "
+      "%d trees, "
+      "rank intvl %.4lf\n",
+      (double)params->curr_rtime / 3600.0, (double)cache->cache_size / 1024.0 / 1024.0, (long)params->curr_vtime,
+      (int)learner->n_train_samples, (int)learner->n_valid_samples, learner->n_trees, params->rank_intvl);
+
+  if (cache->should_dump) {
+    {
+      static __thread char s[128];
+      snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
+      safe_call(XGBoosterSaveModel(learner->booster, s));
+      printf("dump model %s\n", s);
+      // load model
+      safe_call(XGBoosterLoadModel(learner->booster, s));
+      printf("load model %s\n", s);
+
+      // Load model from file
+      BoosterHandle model;
+      safe_call(XGBoosterCreate(NULL, 0, &model));
+      safe_call(XGBoosterSetParam(model, "booster", "gbtree"));
+      safe_call(XGBoosterSetParam(model, "verbosity", "1"));
+      safe_call(XGBoosterSetParam(model, "nthread", "1"));
+      safe_call(XGBoosterLoadModel(model, s));
+    }
+  }
+}
+
+void train_aue(cache_t *cache);
+
+bool have_loaded = false;
+bool is_first_time = true;
+
+// Flow:
+// 1. Upon training, will create new model. If matchmaker, will also create global model.
+// 2. On inference, will select most relevant model and use it by calling proc_rank_best_model.
+void train(cache_t *cache) {
+  if (is_first_time) {
+    ENSEMBLE_init(&global_ensemble);
+    is_first_time = false;
+    if (cache->is_matchmaker) {
+      global_ensemble.is_matchmaker = true;
+    } else {
+      global_ensemble.is_matchmaker = false;
+    }
+  }
+  GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
+  learner_t *learner = &params->learner;
+
+  uint64_t start_time = gettime_usec();
+
+  if (cache->should_load_initial_model) {
+    if (have_loaded) {
+      // printf("Already loaded\n");
+      return;
+    }
+    printf("Loading model\n");
+    have_loaded = true;
+    static __thread char s[128];
+    snprintf(s, 128, cache->initial_model_file, 1);
+
+    safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
+
+    safe_call(XGBoosterLoadModel(learner->booster, s));
+    bst_ulong num_of_features = 0;
+
+    safe_call(XGBoosterGetNumFeature(learner->booster, &num_of_features));
+
+  } else {
+    if (cache->is_matchmaker) {
+      printf("Training XGBOOST MATCHMAKER\n");
+      train_xgboost_matchmaker(cache);
+    } else if (cache->is_aue) {
+      printf("Training AUE");
+      train_aue(cache);
+    } else {
+      printf("Training XGBOOST\n");
+      train_xgboost(cache);
+    }
+  }
+
+  uint64_t end_time = gettime_usec();
+
+  params->learner.n_train += 1;
+  params->learner.last_train_rtime = params->curr_rtime;
+  params->learner.n_train_samples = 0;
+  params->learner.n_valid_samples = 0;
+}
+
+/////////////////////////////////////////////////////////// MATCHMAKER
 
 // Helper function to evaluate a single model (concept ranking)
 float evaluate_model(BoosterHandle model, DMatrixHandle eval_dmats[2], const char **eval_names) {
@@ -46,8 +199,7 @@ void ENSEMBLE_remove_lowest_ranked_model(ENSEMBLE *ensemble) {
 
   int lowest_ranked_index = 0;
   for (int i = 1; i < ensemble->model_count; ++i) {
-    if (ensemble->concept_rankings[i].validation_loss >
-        ensemble->concept_rankings[lowest_ranked_index].validation_loss) {
+    if (ensemble->concept_rankings[i].score > ensemble->concept_rankings[lowest_ranked_index].score) {
       lowest_ranked_index = i;
     }
   }
@@ -73,13 +225,13 @@ void ENSEMBLE_evaluate_concept_ranking(ENSEMBLE *ensemble, DMatrixHandle eval_dm
   for (int i = 0; i < ensemble->model_count; ++i) {
     float valid_loss = evaluate_model(ensemble->models[i], eval_dmats, eval_names);
     ensemble->concept_rankings[i].index = i;
-    ensemble->concept_rankings[i].validation_loss = valid_loss;
+    ensemble->concept_rankings[i].score = valid_loss;
   }
 
   // Sort the concept rankings based on validation loss
   for (int i = 0; i < ensemble->model_count - 1; ++i) {
     for (int j = i + 1; j < ensemble->model_count; ++j) {
-      if (ensemble->concept_rankings[i].validation_loss > ensemble->concept_rankings[j].validation_loss) {
+      if (ensemble->concept_rankings[i].score > ensemble->concept_rankings[j].score) {
         ranking_t temp = ensemble->concept_rankings[i];
         ensemble->concept_rankings[i] = ensemble->concept_rankings[j];
         ensemble->concept_rankings[j] = temp;
@@ -198,6 +350,9 @@ void ENSEMBLE_add_model_from_file(ENSEMBLE *ensemble, const char *file_path, fea
   // Load model from file
   BoosterHandle model;
   safe_call(XGBoosterCreate(NULL, 0, &model));
+  safe_call(XGBoosterSetParam(model, "booster", "gbtree"));
+  safe_call(XGBoosterSetParam(model, "verbosity", "1"));
+  safe_call(XGBoosterSetParam(model, "nthread", "1"));
   if (XGBoosterLoadModel(model, file_path) == 0) {
     // // Make deep copies of train_x and train_y to store them in the ensemble
     feature_t *train_x_copy = my_malloc_n(feature_t, n_samples * n_features);
@@ -215,12 +370,15 @@ void ENSEMBLE_add_model_from_file(ENSEMBLE *ensemble, const char *file_path, fea
     ensemble->train_y[index] = train_y_copy;
     ensemble->sample_counts[index] = n_samples;
     ensemble->model_count++;
+
     printf("Model loaded from %s and added to the ensemble.\n", file_path);
   } else {
     fprintf(stderr, "Error: Could not load model from %s\n", file_path);
     safe_call(XGBoosterFree(model));
   }
-  ENSEMBLE_train_global_tree(ensemble, n_features);
+  if (ensemble->is_matchmaker) {
+    ENSEMBLE_train_global_tree(ensemble, n_features);
+  }
 }
 
 // Placeholder for covariate ranking method
@@ -271,13 +429,13 @@ void evaluate_covariate_ranking(ENSEMBLE *ensemble, DMatrixHandle inference_data
   // Update the covariate ranking based on scores
   for (int i = 0; i < ensemble->model_count; ++i) {
     ensemble->covariate_rankings[i].index = i;
-    ensemble->covariate_rankings[i].validation_loss = (float)model_scores[i];  // Directly use scores as ranking metric
+    ensemble->covariate_rankings[i].score = (float)model_scores[i];  // Directly use scores as ranking metric
   }
 
   // Sort the covariate rankings based on scores
   for (int i = 0; i < ensemble->model_count - 1; ++i) {
     for (int j = i + 1; j < ensemble->model_count; ++j) {
-      if (ensemble->covariate_rankings[i].validation_loss < ensemble->covariate_rankings[j].validation_loss) {
+      if (ensemble->covariate_rankings[i].score < ensemble->covariate_rankings[j].score) {
         ranking_t temp = ensemble->covariate_rankings[i];
         ensemble->covariate_rankings[i] = ensemble->covariate_rankings[j];
         ensemble->covariate_rankings[j] = temp;
@@ -297,8 +455,8 @@ BoosterHandle ENSEMBLE_get_best_model(ENSEMBLE *ensemble) {
   for (int i = 0; i < ensemble->model_count; ++i) {
     // printf("Score place %d, Concept Model: %d (%f), Covariate Model: %d (%f)\n", i,
     // ensemble->concept_rankings[i].index,
-    //        ensemble->concept_rankings[i].validation_loss, ensemble->covariate_rankings[i].index,
-    //        ensemble->covariate_rankings[i].validation_loss);
+    //        ensemble->concept_rankings[i].score, ensemble->covariate_rankings[i].index,
+    //        ensemble->covariate_rankings[i].score);
     scores[ensemble->concept_rankings[i].index] += ensemble->model_count - i;
     scores[ensemble->covariate_rankings[i].index] += ensemble->model_count - i;
   }
@@ -315,7 +473,7 @@ BoosterHandle ENSEMBLE_get_best_model(ENSEMBLE *ensemble) {
   return ensemble->models[best_model_index];
 }
 
-static void train_xgboost(cache_t *cache) {
+static void train_xgboost_matchmaker(cache_t *cache) {
   GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
   learner_t *learner = &params->learner;
 
@@ -324,7 +482,7 @@ static void train_xgboost(cache_t *cache) {
   //   safe_call(XGDMatrixFree(learner->train_dm));
   //   safe_call(XGDMatrixFree(learner->valid_dm));
   // }
-  safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
+  // safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
 
   prepare_training_data(cache);
 
@@ -401,6 +559,8 @@ static void train_xgboost(cache_t *cache) {
     {
       static __thread char s[128];
       snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
+      // pritn cwd
+      printf("cwd: %s\n", getcwd(NULL, 0));
       safe_call(XGBoosterSaveModel(learner->booster, s));
       printf("dump model %s\n", s);
       // for (int m = 0; m < 100; m++) {
@@ -433,54 +593,150 @@ void proc_rank_best_model(cache_t *cache) {
   }
 }
 
-bool have_loaded = false;
-bool is_first_time = true;
+void do_inference(cache_t *cache, bst_ulong *out_len, float **out_result, int n_segs) {
+  const char *config = NULL;  // Pointer to store the configuration JSON string
 
-// Flow:
-// 1. Upon training, will create new model. If matchmaker, will also create global model.
-// 2. On inference, will select most relevant model and use it by calling proc_rank_best_model.
-void train(cache_t *cache) {
-  if (is_first_time) {
-    ENSEMBLE_init(&global_ensemble);
-    is_first_time = false;
+  learner_t *learner = &((GLCache_params_t *)cache->eviction_params)->learner;
+  if (cache->is_matchmaker) {
+    proc_rank_best_model(cache);
+  } else if (cache->is_aue) {
+    for (int i = 0; i < global_ensemble.model_count; ++i) {
+      float weight = global_ensemble.concept_rankings[i].weight;
+      bst_ulong out_len_aue;
+      float *out_result_aue;
+      safe_call(XGBoosterPredict(global_ensemble.models[i], learner->inf_dm, 0, 0, 0, &out_len_aue, &out_result_aue));
+      for (int j = 0; j < n_segs; j++) {
+        (*out_result)[j] += (float)out_result_aue[j] * weight;
+      }
+    }
+    return;
   }
+  safe_call(XGBoosterPredict(learner->booster, learner->inf_dm, 0, 0, 0, &out_len, out_result));
+}
+
+void train_aue(cache_t *cache) {
   GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
   learner_t *learner = &params->learner;
 
-  uint64_t start_time = gettime_usec();
-
-  if (cache->should_load_initial_model) {
-    if (have_loaded) {
-      // printf("Already loaded\n");
-      return;
-    }
-    printf("Loading model\n");
-    have_loaded = true;
-    static __thread char s[128];
-    snprintf(s, 128, cache->initial_model_file, 1);
-
-    safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
-
-    safe_call(XGBoosterLoadModel(learner->booster, s));
-    bst_ulong num_of_features = 0;
-
-    safe_call(XGBoosterGetNumFeature(learner->booster, &num_of_features));
-
-  } else {
-    printf("Training XGBOOST\n");
-    train_xgboost(cache);
-  }
-
-  uint64_t end_time = gettime_usec();
-
-  // INFO("training time %.4lf sec\n", (end_time - start_time) / 1000000.0);
-  // BoosterHandle best_model = ENSEMBLE_get_best_model(&global_ensemble);
-  // if (best_model != NULL && (cache->should_dump || cache->is_matchmaker)) {
-  //   printf("Setting best model\n");
-  //   learner->booster = best_model;
+  // if (learner->n_train != 0) {
+  //   safe_call(XGBoosterFree(learner->booster));
+  //   safe_call(XGDMatrixFree(learner->train_dm));
+  //   safe_call(XGDMatrixFree(learner->valid_dm));
   // }
-  params->learner.n_train += 1;
-  params->learner.last_train_rtime = params->curr_rtime;
-  params->learner.n_train_samples = 0;
-  params->learner.n_valid_samples = 0;
+  // safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
+
+  prepare_training_data(cache);
+
+  DMatrixHandle eval_dmats[2] = {learner->train_dm, learner->valid_dm};
+  static const char *eval_names[2] = {"train", "valid"};
+  const char *eval_result;
+  double train_loss, valid_loss, last_valid_loss = 0;
+  int n_stable_iter = 0;
+
+  safe_call(XGBoosterCreate(eval_dmats, 1, &learner->booster));
+  safe_call(XGBoosterSetParam(learner->booster, "booster", "gbtree"));
+  safe_call(XGBoosterSetParam(learner->booster, "verbosity", "1"));
+  safe_call(XGBoosterSetParam(learner->booster, "nthread", "1"));
+#if OBJECTIVE == REG
+  safe_call(XGBoosterSetParam(learner->booster, "objective", "reg:squarederror"));
+#elif OBJECTIVE == LTR
+  safe_call(XGBoosterSetParam(learner->booster, "objective", "rank:pairwise"));
+#endif
+
+  for (int i = 0; i < N_TRAIN_ITER; ++i) {
+    // Update the model performance for each iteration
+    safe_call(XGBoosterUpdateOneIter(learner->booster, i, learner->train_dm));
+    if (learner->n_valid_samples < 10) continue;
+    safe_call(XGBoosterEvalOneIter(learner->booster, i, eval_dmats, eval_names, 2, &eval_result));
+#if OBJECTIVE == REG
+    const char *train_pos = strstr(eval_result, "train-rmse:") + 11;
+    const char *valid_pos = strstr(eval_result, "valid-rmse:") + 11;
+
+    train_loss = strtof(train_pos, NULL);
+    valid_loss = strtof(valid_pos, NULL);
+
+    // DEBUG("%.2lf hour, cache size %.2lf MB, iter %d, train loss %.4lf, valid
+    // loss %.4lf\n",
+    //     (double) params->curr_rtime / 3600.0,
+    //     (double) cache->cache_size / 1024.0 / 1024.0,
+    //     i, train_loss, valid_loss);
+
+    if (fabs(last_valid_loss - valid_loss) / valid_loss < 0.01) {
+      n_stable_iter += 1;
+      if (n_stable_iter > 2) {
+        break;
+      }
+    } else {
+      n_stable_iter = 0;
+    }
+    last_valid_loss = valid_loss;
+#elif OBJECTIVE == LTR
+    char *train_pos = strstr(eval_result, "train-map") + 10;
+    char *valid_pos = strstr(eval_result, "valid-map") + 10;
+    // DEBUG("%s\n", eval_result);
+#else
+#error
+#endif
+  }
+#ifndef __APPLE__
+  safe_call(XGBoosterBoostedRounds(learner->booster, &learner->n_trees));
+#endif
+
+  printf("EVAL RESULT: %s\n", eval_result);
+  printf(
+      "%.2lf hour, cache size %.2lf MB, vtime %ld, train/valid %d/%d samples, "
+      "%d trees, "
+      "rank intvl %.4lf\n",
+      (double)params->curr_rtime / 3600.0, (double)cache->cache_size / 1024.0 / 1024.0, (long)params->curr_vtime,
+      (int)learner->n_train_samples, (int)learner->n_valid_samples, learner->n_trees, params->rank_intvl);
+
+  if (cache->should_dump || cache->is_aue) {
+    {
+      char s[128];
+      snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
+      // pritn cwd
+      printf("cwd: %s\n", getcwd(NULL, 0));
+      safe_call(XGBoosterSaveModel(learner->booster, s));
+      printf("dump model %s\n", s);
+      // THIS D CULPRIT
+      ENSEMBLE_add_model_from_file(&global_ensemble, s, learner->train_x, learner->train_y, learner->n_train_samples,
+                                   learner->n_feature);
+
+      // AUE will reuse the matchmaker ensemble struct.
+      // Call the calculate concept ranking to get the loss MSE for all models
+      ENSEMBLE_evaluate_concept_ranking(&global_ensemble, eval_dmats, eval_names);
+      // Now, the ensemble has loss value. Calculating weights.
+      // Calculating weights = 1/ MSE + epsilon
+      float eps = 1e-5;
+      float sum_weights = 0;
+      for (int i = 0; i < global_ensemble.model_count; ++i) {
+        global_ensemble.concept_rankings[i].weight = 1 / (global_ensemble.concept_rankings[i].score + eps);
+        sum_weights += global_ensemble.concept_rankings[i].weight;
+      }
+      // Normalize the weights
+      for (int i = 0; i < global_ensemble.model_count; ++i) {
+        global_ensemble.concept_rankings[i].weight /= sum_weights;
+      }
+      // Print weights
+      for (int i = 0; i < global_ensemble.model_count; ++i) {
+        printf("Model %d, Weight: %f\n", i, global_ensemble.concept_rankings[i].weight);
+      }
+
+      // Retrain top K models
+      int k = 3;
+      int iter_train = 5;
+      for (int i = 0; i < k; ++i) {
+        int model_index = global_ensemble.concept_rankings[i].index;
+        // If current models loss is equal to this model, skip
+        float delta = global_ensemble.concept_rankings[i].score - valid_loss;
+        if (delta < eps && delta > -eps) {
+          continue;
+        }
+        for (int j = 0; j < iter_train; j++) {
+          safe_call(XGBoosterUpdateOneIter(global_ensemble.models[model_index], j, learner->train_dm));
+        }
+      }
+      printf("AUE retrained top %d models\n", k);
+    }
+  }
 }

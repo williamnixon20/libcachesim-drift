@@ -20,13 +20,21 @@ extern pthread_mutex_t log_mtx;
 
 #define LOGGING(level, FMT, ...)           \
   do {                                     \
-    pthread_mutex_lock(&log_mtx);          \
     log_header(level, __FILE__, __LINE__); \
     printf(FMT, ##__VA_ARGS__);            \
     printf("%s", NORMAL);                  \
     fflush(stdout);                        \
-    pthread_mutex_unlock(&log_mtx);        \
   } while (0)
+
+// #define LOGGING(level, FMT, ...)           \
+  // do {                                     \
+  //   pthread_mutex_lock(&log_mtx);          \
+  //   log_header(level, __FILE__, __LINE__); \
+  //   printf(FMT, ##__VA_ARGS__);            \
+  //   printf("%s", NORMAL);                  \
+  //   fflush(stdout);                        \
+  //   pthread_mutex_unlock(&log_mtx);        \
+  // } while (0)
 
 #if LOGLEVEL <= VVVERBOSE_LEVEL
 #define VVVERBOSE(FMT, ...) LOGGING(VVVERBOSE_LEVEL, FMT, ##__VA_ARGS__)

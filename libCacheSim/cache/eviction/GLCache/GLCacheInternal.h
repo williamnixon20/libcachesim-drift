@@ -279,6 +279,8 @@ void inference(cache_t *cache);
 
 void proc_rank_best_model(cache_t *cache);
 
+void do_inference(cache_t *cache, bst_ulong *out_len, float **out_result, int n_segs);
+
 /************* data preparation *****************/
 void snapshot_segs_to_training_data(cache_t *cache);
 

@@ -2,7 +2,6 @@
 //  a learned log-structure cache module
 //
 //
-
 #include <assert.h>
 #include <stdbool.h>
 
@@ -124,7 +123,8 @@ static void GLCache_parse_init_params(const char *cache_specific_params, GLCache
  * @param cache_specific_params cache specific parameters, see parse_params
  */
 cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cache_specific_params,
-                      int retrain_interval, bool should_dump, bool should_load, const char *model_file, bool is_matchmaker, const char *label) {
+                      int retrain_interval, bool should_dump, bool should_load, const char *model_file,
+                      bool is_matchmaker, const char *label, bool is_aue) {
   cache_t *cache = cache_struct_init("GLCache", ccache_params, cache_specific_params);
 
   if (ccache_params.consider_obj_metadata) {
@@ -141,6 +141,7 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cac
   memset(params, 0, sizeof(GLCache_params_t));
   cache->eviction_params = params;
   cache->is_matchmaker = is_matchmaker;
+  cache->is_aue = is_aue;
 
   set_default_params(params);
 
@@ -150,8 +151,6 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cac
 
   params->n_retain_per_seg = params->segment_size / params->n_merge;
   params->retrain_intvl = retrain_interval;
-
-  printf("GLCACHE PARAMS INTVL: %d\n", params->retrain_intvl);
 
   switch (params->type) {
     case LOGCACHE_LOG_ORACLE:
@@ -276,6 +275,7 @@ static bool GLCache_get(cache_t *cache, const request_t *req) {
     /* generate training data by taking a snapshot */
     learner_t *l = &params->learner;
     if (l->last_train_rtime > 0 && params->curr_rtime - l->last_train_rtime >= params->retrain_intvl + 1) {
+      printf("retrain interval: %d\n", params->retrain_intvl);
       train(cache);
       snapshot_segs_to_training_data(cache);
     }

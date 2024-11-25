@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Define directories
-# data_dir="/home/cc/clio/libCacheSim/data/alibaba/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock"
-data_dir="/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock"
-
+# data_dir="/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock"
+data_dir="/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock"
+# data_dir="/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/cloudphysics"
 # Save the current working directory
 orig_dir=$(pwd)
 
@@ -21,12 +21,12 @@ process_file() {
     fi
 
     # Check if file size is larger than 200 MB
-    if [[ $(stat -c%s "$file") -gt 1000000000 ]]; then
+    if [[ $(stat -c%s "$file") -gt 200000000 ]]; then
         echo "Skipping $file because file size is larger than 20 MB"
         return
     fi
 
-    base_result_dir="result_matchmaker_complete"
+    base_result_dir="result_tencent_aue_all"
 
     # Check if processing is already done
     if [[ -f "$base_result_dir/$filename/done" ]]; then
@@ -40,8 +40,8 @@ process_file() {
     mkdir dump
 
     # Run your Python scripts (uncomment the lines you want to run)
-    python3 ../../plot_mrc_glcache_matchmaker_concept.py --tracepath $file --algos=gl-cache --miss-ratio-type="accu" --verbose 
-    
+    python3 ../../plot_mrc_glcache_single_arg.py --tracepath $file --miss-ratio-type="accu"
+
     touch done
 
     cd $orig_dir
@@ -53,29 +53,39 @@ export -f process_file
 export orig_dir
 export data_dir
 
-# # Loop through each file and process in parallel
-# find "$data_dir" -name "*oracleGeneral*" | echo "Processing file name $(xargs -n 1 basename)" | xargs -n 1 -P 30 bash -c 'process_file "$@"' _
-# find "$data_dir" -name "*oracleGeneral*" | xargs -n 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
-# find "$data_dir" -name "*oracleGeneral*" | xargs -P 40 -I {} bash -c 'echo "Processing file name $(basename "{}")"; process_file "$@"' _ {}
+# # # Loop through each file and process in parallel
+find "$data_dir" -name "*oracleGeneral*" | echo "Processing file name $(xargs -n 1 basename)" | xargs -n 1 -P 5 bash -c 'process_file "$@"' _
+
+# files=(
+#   '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns12519.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns13837.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns13851.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns16608.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns17304.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns2009.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns20132.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns3542.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns5338.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns5836.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns6452.oracleGeneral.zst'
+#  '/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/tencentBlock/tencentBlock.ns9075.oracleGeneral.zst'
+
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns119.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns202.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns267.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns292.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns3.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns315.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns346.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns370.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns506.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns525.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns568.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns659.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns720.oracleGeneral.zst"
+#     # "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns90.oracleGeneral.zst"
+# )
 
 
-files=(
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns119.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns202.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns267.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns292.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns3.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns315.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns346.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns370.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns506.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns525.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns568.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns659.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns720.oracleGeneral.zst"
-    "/home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns90.oracleGeneral.zst"
-)
-
-
-printf "%s\n" "${files[@]}" | xargs -P 30 -I {} bash -c 'process_file "{}"' 
+# printf "%s\n" "${files[@]}" | xargs -P 1 -I {} bash -c 'process_file "{}"' 
 

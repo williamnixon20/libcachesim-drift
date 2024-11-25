@@ -75,21 +75,24 @@ void inference_xgboost(cache_t *cache) {
   int n_segs = prepare_inference_data(cache);
 
   /* pred result stored in xgboost lib */
-  const float *pred;
-
+  float *pred = (float *)calloc(n_segs, sizeof(float));
 #ifdef DUMP_INFERENCE_DATA
   static __thread char filename[24];
   snprintf(filename, 24, "inf_data_%d", learner->n_train - 1);
   FILE *f = fopen(filename, "a");
 #endif
 
-  proc_rank_best_model(cache);
-
   bst_ulong out_len = 0;
   // TODO: use XGBoosterPredictFromDense to avoid copy
   // https://github.com/dmlc/xgboost/blob/36346f8f563ef79bae94604e60483fb0bf4c2661/demo/c-api/inference/inference.c
-  safe_call(XGBoosterPredict(learner->booster, learner->inf_dm, 0, 0, 0, &out_len, &pred));
-
+  // for (int i = 0; i < 10; i++) {
+  //   printf("BEFORE Inf pred value: %f\n", pred[i]);
+  // }
+  do_inference(cache, &out_len, &pred, n_segs);
+  // safe_call(XGBoosterPredict(learner->booster, learner->inf_dm, 0, 0, 0, &out_len, &pred));
+  // for (int i = 0; i < 10; i++) {
+  //   printf("AFTER Inf pred value: %f\n", pred[i]);
+  // }
   segment_t **ranked_segs = params->seg_sel.ranked_segs;
 
   n_segs = 0;

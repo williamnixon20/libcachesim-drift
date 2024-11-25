@@ -43,6 +43,7 @@ struct arguments {
   bool should_dump;
   bool should_load_initial_model;
   bool is_matchmaker;
+  bool is_aue;
   char initial_model_file[516];
   char cache_label[516];
 

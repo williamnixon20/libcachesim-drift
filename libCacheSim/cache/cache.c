@@ -43,6 +43,7 @@ cache_t *cache_struct_init(const char *const cache_name, const common_cache_para
   cache->retrain_interval = 0;
   cache->should_dump = false;
   cache->is_matchmaker = false;
+  cache->is_aue = false;
   cache->label[0] = '\0';
   cache->should_load_initial_model = false;
   cache->initial_model_file[0] = '\0';

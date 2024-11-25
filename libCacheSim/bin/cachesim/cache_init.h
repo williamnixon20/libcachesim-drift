@@ -136,7 +136,7 @@ static inline cache_t *create_cache(const char *trace_path, const char *eviction
 #ifdef ENABLE_GLCACHE
   } else if (strcasecmp(eviction_algo, "GLCache") == 0 || strcasecmp(eviction_algo, "gl-cache") == 0) {
     cache = GLCache_init(cc_params, eviction_params, args->retrain_interval, args->should_dump,
-                         args->should_load_initial_model, args->initial_model_file, args->is_matchmaker, args->cache_label);
+                         args->should_load_initial_model, args->initial_model_file, args->is_matchmaker, args->cache_label, args->is_aue);
 #endif
 #ifdef ENABLE_LRB
   } else if (strcasecmp(eviction_algo, "lrb") == 0) {

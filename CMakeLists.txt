@@ -130,7 +130,7 @@ set(CFLAGS "$ENV{CFLAGS} "
 
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(CFLAGS "$ENV{CFLAGS} " "-Wl,--export-dynamic,-g ")
+    set(CFLAGS "$ENV{CFLAGS} " "-Wl,--export-dynamic,-g")
 endif ()
 
 string(REPLACE "" "" LOCAL_CFLAGS ${CFLAGS})
