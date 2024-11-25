@@ -112,6 +112,7 @@ struct cache {
   char initial_model_file[516];
   bool is_matchmaker;
   bool is_aue;
+  bool is_driftsurf;
   char label[516];
 
   admissioner_t *admissioner;

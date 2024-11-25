@@ -82,12 +82,13 @@ void simulate(reader_t *reader, cache_t *cache, int report_interval, int warmup_
     if (strcmp(cache->initial_model_file, "") != 0) {
       ofilepath = cache->initial_model_file;
     }
-    snprintf(output_str, 1024,
-             "%s %s cache size %8s, %16lu req, miss ratio %.4lf, throughput "
-             "%.2lf MQPS, %d Retrain-Interval, %s Model File ID, %s LABEL, %d is_matchmaker, %d is_aue\n",
-             reader->trace_path, cache->cache_name, size_str, (unsigned long)req_cnt,
-             (double)miss_cnt / (double)req_cnt, (double)req_cnt / 1000000.0 / runtime, cache->retrain_interval,
-             ofilepath, cache->label, cache->is_matchmaker, cache->is_aue);
+    snprintf(
+        output_str, 1024,
+        "%s %s cache size %8s, %16lu req, miss ratio %.4lf, throughput "
+        "%.2lf MQPS, %d Retrain-Interval, %s Model File ID, %s LABEL, %d is_matchmaker, %d is_aue, %d is_driftsurf \n",
+        reader->trace_path, cache->cache_name, size_str, (unsigned long)req_cnt, (double)miss_cnt / (double)req_cnt,
+        (double)req_cnt / 1000000.0 / runtime, cache->retrain_interval, ofilepath, cache->label, cache->is_matchmaker,
+        cache->is_aue, cache->is_driftsurf);
   } else {
     snprintf(output_str, 1024,
              "%s %s cache size %8ld, %16lu req, miss ratio %.4lf, throughput "

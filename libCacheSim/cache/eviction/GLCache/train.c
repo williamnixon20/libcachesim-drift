@@ -10,6 +10,174 @@
 #define NUM_TREES 20
 #define MAX_LEAFS 100
 
+bool driftsurf_first = true;
+BoosterHandle stable_model;
+BoosterHandle reactive_model;
+BoosterHandle predictive_model;
+bool stable_init = true;
+bool reactive_init = true;
+bool predictive_init = true;
+
+bool driftsurf_reactive = false;
+int reactive_length = 3;
+int time_step_reactive = 0;
+
+static void initialize_model(BoosterHandle *model, DMatrixHandle dmats[2]) {
+  printf("Initialize model\n");
+  safe_call(XGBoosterCreate(dmats, 2, model));
+  safe_call(XGBoosterSetParam(*model, "booster", "gbtree"));
+  safe_call(XGBoosterSetParam(*model, "verbosity", "1"));
+  safe_call(XGBoosterSetParam(*model, "nthread", "1"));
+  safe_call(XGBoosterSetParam(*model, "objective", "reg:squarederror"));
+}
+
+float update_model(BoosterHandle *model, DMatrixHandle dmats[2], int n_valid_samples, bool init) {
+  const char *eval_result;
+  // int boosted_round;
+  // XGBoosterBoostedRounds(*model, &boosted_round);
+  // // printf("1. Current tree size %d\n", boosted_round);
+
+  float train_loss = 0;
+  float valid_loss = 0;
+  float last_valid_loss = 0;
+  int n_stable_iter = 0;
+
+  int retrain_rounds = 5;
+  if (init) {
+    retrain_rounds = N_TRAIN_ITER;
+  }
+
+  static const char *eval_names[2] = {"train", "valid"};
+  for (int i = 0; i < retrain_rounds; ++i) {
+    // Update the model performance for each iteration
+    safe_call(XGBoosterUpdateOneIter(*model, i, dmats[0]));
+    if (n_valid_samples < 10) continue;
+    safe_call(XGBoosterEvalOneIter(*model, i, dmats, eval_names, 2, &eval_result));
+    const char *train_pos = strstr(eval_result, "train-rmse:") + 11;
+    const char *valid_pos = strstr(eval_result, "valid-rmse:") + 11;
+
+    train_loss = strtof(train_pos, NULL);
+    valid_loss = strtof(valid_pos, NULL);
+    last_valid_loss = valid_loss;
+
+    if (fabs(last_valid_loss - valid_loss) / valid_loss < 0.01) {
+      n_stable_iter += 1;
+      if (n_stable_iter > 2) {
+        break;
+      }
+    } else {
+      n_stable_iter = 0;
+    }
+  }
+  return last_valid_loss;
+}
+
+float evaluate_model(BoosterHandle model, DMatrixHandle eval_dmats[2], const char **eval_names);
+
+float sum_error_predictive = 0;
+float sum_error_reactive = 0;
+float best_loss = 99999;
+float eps = 0.05;
+// Todo: Window / context length
+static void train_driftsurf(cache_t *cache) {
+  prepare_training_data(cache);
+
+  GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
+  learner_t *learner = &params->learner;
+  DMatrixHandle eval_dmats[2] = {learner->train_dm, learner->valid_dm};
+  static const char *eval_names[2] = {"train", "valid"};
+  double train_loss, valid_loss, last_valid_loss = 0;
+  int n_stable_iter = 0;
+
+  if (driftsurf_first) {
+    // Initialize models
+    initialize_model(&stable_model, eval_dmats);
+    initialize_model(&reactive_model, eval_dmats);
+    initialize_model(&predictive_model, eval_dmats);
+    stable_init = true;
+    reactive_init = true;
+    predictive_init = true;
+  }
+
+  if (!driftsurf_reactive) {
+    printf("State: Stable\n");
+    fflush(stdout);
+    bool transition = false;
+    if (!driftsurf_first && best_loss < 9000) {
+      float curr_loss = evaluate_model(predictive_model, eval_dmats, eval_names);
+      float stable_loss = evaluate_model(stable_model, eval_dmats, eval_names);
+      printf("Eval stable Stable: %.4lf, Predictive: %.4lf, Best Loss: %.4lf \n", stable_loss, curr_loss, best_loss);
+      // If current is worst then stable, or current is performing worst than best
+      if (curr_loss > (stable_loss + (eps / 2)) || curr_loss > (best_loss + eps)) {
+        transition = true;
+      }
+    }
+    if (transition) {
+      printf("Transitioned\n");
+      driftsurf_reactive = true;
+      initialize_model(&reactive_model, eval_dmats);
+      reactive_init = true;
+      time_step_reactive = 0;
+      sum_error_predictive = 0;
+      sum_error_reactive = 0;
+    } else {
+      float stable_loss = update_model(&stable_model, eval_dmats, learner->n_valid_samples, stable_init);
+      float pred_loss = update_model(&predictive_model, eval_dmats, learner->n_valid_samples, predictive_init);
+      printf("Update eval Stable: %.4lf, Predictive: %.4lf\n", stable_loss, pred_loss);
+      if (best_loss > stable_loss && stable_loss > 1e-5) {
+        printf("Update best loss %.4lf\n", stable_loss);
+        best_loss = stable_loss;
+      }
+    }
+    learner->booster = stable_model;
+  } else {
+    printf("State: Reactive\n");
+    // Reactive state
+    time_step_reactive += 1;
+    float eval_reactive = update_model(&reactive_model, eval_dmats, learner->n_valid_samples, reactive_init);
+    float eval_predictive = update_model(&predictive_model, eval_dmats, learner->n_valid_samples, predictive_init);
+    sum_error_predictive += eval_predictive;
+    sum_error_reactive += eval_reactive;
+    printf("Eval reactive Reactive: %.4lf, Predictive: %.4lf\n", eval_reactive, eval_predictive);
+    fflush(stdout);
+
+    if (time_step_reactive == reactive_length) {
+      driftsurf_reactive = false;
+      time_step_reactive = 0;
+      best_loss = 9999;
+      initialize_model(&stable_model, eval_dmats);
+      stable_init = true;
+      bool should_switch = sum_error_predictive > sum_error_reactive;
+      printf("Sum err reactive: %.4lf, predictive: %.4lf\n", sum_error_reactive, sum_error_predictive);
+      if (should_switch) {
+        printf("Switching predictive with reactive\n");
+        // Switch reactive model to predictive
+        static __thread char s[128];
+        snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
+        safe_call(XGBoosterSaveModel(reactive_model, s));
+        printf("dump model %s\n", s);
+        safe_call(XGBoosterLoadModel(predictive_model, s));
+      }
+    } else {
+      // DONE: Choose between reactive and predictive
+      if (eval_reactive < eval_predictive) {
+        learner->booster = reactive_model;
+      } else {
+        learner->booster = predictive_model;
+      }
+    }
+  }
+
+  safe_call(XGBoosterBoostedRounds(learner->booster, &learner->n_trees));
+  printf(
+      "%.2lf hour, cache size %.2lf MB, vtime %ld, train/valid %d/%d samples, "
+      "%d trees, "
+      "rank intvl %.4lf\n",
+      (double)params->curr_rtime / 3600.0, (double)cache->cache_size / 1024.0 / 1024.0, (long)params->curr_vtime,
+      (int)learner->n_train_samples, (int)learner->n_valid_samples, learner->n_trees, params->rank_intvl);
+  driftsurf_first = false;
+}
+
 typedef struct {
   int index;
   float score;
@@ -42,7 +210,7 @@ static void train_xgboost(cache_t *cache) {
   GLCache_params_t *params = (GLCache_params_t *)cache->eviction_params;
   learner_t *learner = &params->learner;
 
-  // safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
+  safe_call(XGBoosterCreate(NULL, 0, &learner->booster));
 
   prepare_training_data(cache);
 
@@ -109,17 +277,6 @@ static void train_xgboost(cache_t *cache) {
       snprintf(s, 128, "dump/model_%d.bin", learner->n_train);
       safe_call(XGBoosterSaveModel(learner->booster, s));
       printf("dump model %s\n", s);
-      // load model
-      safe_call(XGBoosterLoadModel(learner->booster, s));
-      printf("load model %s\n", s);
-
-      // Load model from file
-      BoosterHandle model;
-      safe_call(XGBoosterCreate(NULL, 0, &model));
-      safe_call(XGBoosterSetParam(model, "booster", "gbtree"));
-      safe_call(XGBoosterSetParam(model, "verbosity", "1"));
-      safe_call(XGBoosterSetParam(model, "nthread", "1"));
-      safe_call(XGBoosterLoadModel(model, s));
     }
   }
 }
@@ -169,8 +326,12 @@ void train(cache_t *cache) {
       printf("Training XGBOOST MATCHMAKER\n");
       train_xgboost_matchmaker(cache);
     } else if (cache->is_aue) {
-      printf("Training AUE");
+      printf("Training AUE\n");
       train_aue(cache);
+      // TODO THIS ARGUMENT
+    } else if (cache->is_driftsurf) {
+      printf("Training DriftSurf\n");
+      train_driftsurf(cache);
     } else {
       printf("Training XGBOOST\n");
       train_xgboost(cache);
@@ -710,7 +871,8 @@ void train_aue(cache_t *cache) {
       float eps = 1e-5;
       float sum_weights = 0;
       for (int i = 0; i < global_ensemble.model_count; ++i) {
-        global_ensemble.concept_rankings[i].weight = 1 / (global_ensemble.concept_rankings[i].score + eps);
+        // Most recent model higher weight
+        global_ensemble.concept_rankings[i].weight = 1 / ((global_ensemble.concept_rankings[i].score) + eps);
         sum_weights += global_ensemble.concept_rankings[i].weight;
       }
       // Normalize the weights
@@ -735,8 +897,20 @@ void train_aue(cache_t *cache) {
         for (int j = 0; j < iter_train; j++) {
           safe_call(XGBoosterUpdateOneIter(global_ensemble.models[model_index], j, learner->train_dm));
         }
+        // int boosted_round;
+        // XGBoosterBoostedRounds(global_ensemble.models[model_index], &boosted_round);
+        // printf("Current boosted round: %d\n", boosted_round);
       }
       printf("AUE retrained top %d models\n", k);
     }
   }
 }
+
+// /home/cc/libcachesim-private/_build/bin/cachesim
+// /home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns267.oracleGeneral.zst
+// oracleGeneral gl-cache 0.1 --report-interval 3600 --ignore-obj-size 0 --dump-model true --load-model false
+// --matchmaker false --aue false --label aue --warmup-sec 86400 --retrain-intvl 8400
+// /home/cc/libcachesim-private/_build/bin/cachesim
+// /home/cc/libcachesim-private/data/ftp.pdl.cmu.edu/pub/datasets/twemcacheWorkload/cacheDatasets/alibabaBlock/io_traces.ns267.oracleGeneral.zst
+// oracleGeneral gl-cache 0.1 --report-interval 3600 --ignore-obj-size 0 --dump-model true --load-model false
+// --matchmaker false --aue true --label aue --warmup-sec 86400 --retrain-intvl 8400

@@ -124,7 +124,7 @@ static void GLCache_parse_init_params(const char *cache_specific_params, GLCache
  */
 cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cache_specific_params,
                       int retrain_interval, bool should_dump, bool should_load, const char *model_file,
-                      bool is_matchmaker, const char *label, bool is_aue) {
+                      bool is_matchmaker, const char *label, bool is_aue, bool is_driftsurf) {
   cache_t *cache = cache_struct_init("GLCache", ccache_params, cache_specific_params);
 
   if (ccache_params.consider_obj_metadata) {
@@ -141,6 +141,7 @@ cache_t *GLCache_init(const common_cache_params_t ccache_params, const char *cac
   memset(params, 0, sizeof(GLCache_params_t));
   cache->eviction_params = params;
   cache->is_matchmaker = is_matchmaker;
+  cache->is_driftsurf = is_driftsurf;
   cache->is_aue = is_aue;
 
   set_default_params(params);

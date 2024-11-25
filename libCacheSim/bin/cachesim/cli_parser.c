@@ -47,6 +47,7 @@ enum argp_option_short {
   OPTION_LABEL_CACHE = 'l',
   OPTION_MATCHMAKER = 0x20a,
   OPTION_AUE = 0x20b,
+  OPTION_DRIFTSURF = 0x20c,
 
   OPTION_DUMP_MODEL = 0x10c,
   OPTION_LOAD_MODEL = 0x10d,
@@ -97,6 +98,7 @@ static struct argp_option options[] = {
     {"model-file", OPTION_MODEL_FILE, "model", 0, "model file path", 10},
     {"label", OPTION_LABEL_CACHE, "cache", 0, "label for the cache", 10},
     {"matchmaker", OPTION_MATCHMAKER, "false", 0, "whether the cache is a matchmaker", 10},
+    {"driftsurf", OPTION_DRIFTSURF, "false", 0, "whether the cache is driftsurf", 10},
     {"aue", OPTION_AUE, "false", 0, "whether the cache is aue", 10},
     {0}};
 
@@ -207,6 +209,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPTION_MATCHMAKER:
       arguments->is_matchmaker = is_true(arg) ? true : false;
       break;
+    case OPTION_DRIFTSURF:
+      arguments->is_driftsurf = is_true(arg) ? true : false;
+      break;
     case OPTION_AUE:
       arguments->is_aue = is_true(arg) ? true : false;
       break;
@@ -263,6 +268,7 @@ static void init_arg(struct arguments *args) {
   args->retrain_interval = 86400;
   args->should_dump = false;
   args->is_matchmaker = false;
+  args->is_driftsurf = false;
   args->is_aue = false;
   args->should_load_initial_model = false;
   memset(args->initial_model_file, 0, sizeof(args->initial_model_file));
@@ -319,6 +325,7 @@ void parse_cmd(int argc, char *argv[], struct arguments *args) {
   printf("SHOULD DUMP MODEL %d\n", args->should_dump);
   printf("LABEL %s\n", args->cache_label);
   printf("MATCHMAKER %d\n", args->is_matchmaker);
+  printf("Driftsurf %d\n", args->is_driftsurf);
   printf("AUE %d\n", args->is_aue);
 
   /* the third parameter is the cache size, but we cannot parse it now
